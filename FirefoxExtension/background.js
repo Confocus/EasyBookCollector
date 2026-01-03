@@ -6,32 +6,32 @@ browser.menus.create({
 });
 
 const manifest = browser.runtime.getManifest();
-const supportedUrls = manifest.content_scripts[0].matches.map(pattern =>{
+const supportedUrls = manifest.content_scripts[0].matches.map(pattern => {
     // 去掉最后的 * 号，方便 startsWith 判断
     return pattern.replace(/\*$/, "");
 });
 
 // 处理点击事件
-browser.menus.onClicked.addListener((info, tab) =>{
+browser.menus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === "save-bookmark") {
         const url = tab.url;
-        const isSupported = supportedUrls.some(prefix =>url.startsWith(prefix));
+        const isSupported = supportedUrls.some(prefix => url.startsWith(prefix));
         console.log("你点击了 XXX，标签页：", tab);
         if (isSupported) {
-            browser.tabs.sendMessage ?. (tab.id, {
+            browser.tabs.sendMessage?.(tab.id, {
                 action: "save-bookmark"
             }).
-            catch(err =>{
-              console.error("isSupported失败：", err);
-});
+                catch(err => {
+                    console.error("isSupported失败：", err);
+                });
             console.log("准备执行browser.runtime.sendNativeMessage：", tab);
             browser.runtime.sendNativeMessage("com.demo.native_host", // Host 名称
-            { action: "test" }).then(response =>{
-                console.log("Native 返回：", response);
-            }).
-            catch(err =>{
-                console.error("Native 连接失败：", err);
-            });
+                { action: "test" }).then(response => {
+                    console.log("Native 返回：", response);
+                }).
+                catch(err => {
+                    console.error("Native 连接失败：", err);
+                });
 
         } else {
             browser.notifications.create({
@@ -43,4 +43,14 @@ browser.menus.onClicked.addListener((info, tab) =>{
         }
 
     }
+});
+
+
+browser.runtime.onMessage.addListener((msg, sender) => {
+    console.log("收到 content script 消息:", msg);
+    // 可以选择回复
+    return Promise.resolve({ status: "ok" });
+
+    // 如果你要发给 exe
+    // browser.runtime.sendNativeMessage("com.example.myexe", msg);
 });

@@ -21,6 +21,7 @@
             "matches":
             [
                 "https://product.dangdang.com/*",
+                "http://product.dangdang.com/*",
                 "https://book.douban.com/*"
             ],
             "js":

@@ -10,15 +10,18 @@ using namespace std;
 string readMessage()
 {
 	uint32_t length = 0;
+	std::ofstream log("..\\native_host.log", std::ios::app);
 
 	// 读 4 字节长度
 	if (!cin.read(reinterpret_cast<char*>(&length), 4))
 		return "";
 
+	log << length << std::endl;
 	vector<char> buffer(length);
 
 	// 读 JSON 内容
 	cin.read(buffer.data(), length);
+	log << string(buffer.begin(), buffer.end()) << std::endl;
 
 	return string(buffer.begin(), buffer.end());
 }
