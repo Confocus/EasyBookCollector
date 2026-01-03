@@ -1,0 +1,9 @@
+{
+  "name": "com.demo.native_host",
+  "description": "Demo Native Messaging Host",
+  "path": "D:\\AllProjects\\GlobalBookmark\\NativeMessageDemo\\NativeMessageDemo\\x64\\Debug\\NativeMessageDemo.exe",
+  "type": "stdio",
+  "allowed_extensions": [
+    "tab-context-demo@yourname.com"
+  ]
+}

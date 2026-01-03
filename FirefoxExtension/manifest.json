@@ -1,0 +1,39 @@
+{
+    "manifest_version": 2,
+    "name": "Tab Context Demo",
+    "version": "1.0",
+    "description": "右键标签页时显示菜单项保存书签",
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "tab-context-demo@yourname.com"
+        }
+    },
+    "permissions":
+    [
+        "menus",
+        "notifications",
+        "nativeMessaging",
+        "tabs"
+    ],
+    "content_scripts":
+    [
+        {
+            "matches":
+            [
+                "https://product.dangdang.com/*",
+                "https://book.douban.com/*"
+            ],
+            "js":
+            [
+                "content.js"
+            ]
+        }
+    ],
+    "background":
+    {
+        "scripts":
+        [
+            "background.js"
+        ]
+    }
+}
