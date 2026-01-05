@@ -1,0 +1,2 @@
+要在对应的注册表中添加NativeMessagingHosts的地址：
+HKEY_CURRENT_USER\Software\Mozilla\NativeMessagingHosts\com.demo.native_host  C:\Users\35990\AppData\Roaming\Mozilla\NativeMessagingHosts\com.demo.native_host.json
