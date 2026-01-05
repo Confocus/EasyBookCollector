@@ -138,7 +138,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		int screenHeight = GetSystemMetrics(SM_CYSCREEN);  // 屏幕高度
 		int width = screenWidth / 5;   // 新宽度
 		int height = screenHeight / 2;  // 新高度
-		SetWindowPos(hWnd, NULL, screenWidth - width, 100, width, height,
+
+		SetWindowPos(hWnd, NULL, screenWidth - width, 100, 
+			width, height,
 			 SWP_NOZORDER);//SWP_NOMOVE
 
 		g_nEdgeWidth = width / 20;
@@ -146,24 +148,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_TIMER:
 	{
-		g_nCurrentFrame++;
-		
-		double dProcess = (static_cast<double>(g_nCurrentFrame) / static_cast<double>(g_nDefaultSlideFrames));//待滑动的百分比的进度
-		double dSlideWidth = dProcess * static_cast<double>(g_nSlideDistance - g_nEdgeWidth);//相较于原始左边起点每次待滑动的距离
-		int nCurrentWindowLeft = g_nOriginalWindowLeft + dSlideWidth;
-
-		RECT rcWindow;
-		GetWindowRect(hWnd, &rcWindow);
-		SetWindowPos(hWnd, NULL,
-			nCurrentWindowLeft, rcWindow.top,
-			0, 0,
-			SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-
-		if (g_nCurrentFrame > g_nDefaultSlideFrames)
-		{
-			KillTimer(hWnd, g_uAnimTimerID);
-			g_bIsMainWindowHide = TRUE;//此时已经隐藏好
-		}
+		ProcessStimulateSlideHideWindowToRightEdge(hWnd);
 
 		break;
 	}
@@ -212,6 +197,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_MOUSEHOVER:
 	{
+		ShowHidedWindowFromRightSide(hWnd);
 		//MessageBoxW(hWnd, L"xuanting", L"xxxxx", 0);
 		//TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT) };
 		//tme.dwFlags = TME_HOVER | TME_LEAVE; // 同时监听悬停和离开
@@ -229,12 +215,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//隐藏窗口
 			StartStimulateSlideHideWindowToRightEdge(hWnd);
 		}
-		break;
-		/*TRACKMOUSEEVENT tme = { 0 };
-		tme.cbSize = sizeof(TRACKMOUSEEVENT);
-		tme.dwFlags = TME_LEAVE;
-		tme.hwndTrack = hWnd;
-		TrackMouseEvent(&tme);*/
 		break;
 	}
 	case WM_DESTROY:

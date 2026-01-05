@@ -15,3 +15,5 @@ const int EDGE_THRESHOLD = 5;
 std::optional<bool> IsMainWindowTouchScreenEdge(HWND hWnd);
 //void SlideHideWindowToRightEdge(HWND hWnd);
 BOOL StartStimulateSlideHideWindowToRightEdge(HWND hWnd);
+VOID ProcessStimulateSlideHideWindowToRightEdge(HWND hWnd);
+VOID ShowHidedWindowFromRightSide(HWND hWnd);

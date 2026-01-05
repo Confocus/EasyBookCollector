@@ -1,14 +1,15 @@
 #include "functions.h"
 
 const int ANIMATION_TIME = 800;
-const int nFrameInterval = 10;
+const int nFrameInterval = 1;
 
 BOOL g_bIsMainWindowHide = FALSE;
 int g_nCurrentFrame = 0;
 int g_nSlideDistance = 0;
 UINT_PTR g_uAnimTimerID = 1;         // 动画定时器ID
 int g_nOriginalWindowLeft = 0;
-const int g_nDefaultSlideFrames = 100;
+int g_nOriginalWindowTop = 0;
+const int g_nDefaultSlideFrames = 30;
 int g_nEdgeWidth = 0;
 
 std::optional<bool> IsMainWindowTouchScreenEdge(HWND hWnd)
@@ -51,6 +52,7 @@ BOOL StartStimulateSlideHideWindowToRightEdge(HWND hWnd)
 	RECT rcWindow;
 	GetWindowRect(hWnd, &rcWindow);
 	g_nOriginalWindowLeft = rcWindow.left;
+	g_nOriginalWindowTop = rcWindow.top;
 
 	HMONITOR hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
 	if (!hMonitor)
@@ -64,6 +66,43 @@ BOOL StartStimulateSlideHideWindowToRightEdge(HWND hWnd)
 	return TRUE;
 }
 
+VOID ProcessStimulateSlideHideWindowToRightEdge(HWND hWnd)
+{
+	g_nCurrentFrame++;
+
+	double dProcess = (static_cast<double>(g_nCurrentFrame) / static_cast<double>(g_nDefaultSlideFrames));//待滑动的百分比的进度
+	double dSlideWidth = dProcess * static_cast<double>(g_nSlideDistance - g_nEdgeWidth);//相较于原始左边起点每次待滑动的距离
+	int nCurrentWindowLeft = g_nOriginalWindowLeft + dSlideWidth;
+
+	RECT rcWindow;
+	GetWindowRect(hWnd, &rcWindow);
+	SetWindowPos(hWnd, NULL,
+		nCurrentWindowLeft, rcWindow.top,
+		0, 0,
+		SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+	if (g_nCurrentFrame >= g_nDefaultSlideFrames)
+	{
+		KillTimer(hWnd, g_uAnimTimerID);
+		g_bIsMainWindowHide = TRUE;//此时已经隐藏好
+		g_nCurrentFrame = 0;//恢复等于0，以留着下次计算使用
+	}
+}
+
+VOID ShowHidedWindowFromRightSide(HWND hWnd)
+{
+	int screenWidth = GetSystemMetrics(SM_CXSCREEN);   // 屏幕宽度
+	int screenHeight = GetSystemMetrics(SM_CYSCREEN);  // 屏幕高度
+	int width = screenWidth / 5;   // 新宽度
+	int height = screenHeight / 2;  // 新高度
+
+	SetWindowPos(hWnd, NULL,
+		g_nOriginalWindowLeft, g_nOriginalWindowTop,
+		width, height,
+		SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+	g_bIsMainWindowHide = FALSE;
+}
 //只能客户区移动，窗口的边框非客户区无法移动
 //void SlideHideWindowToRightEdge(HWND hWnd)
 //{
