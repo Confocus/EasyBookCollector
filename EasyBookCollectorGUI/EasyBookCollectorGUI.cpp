@@ -141,6 +141,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		SetWindowPos(hWnd, NULL, screenWidth - width, 100, width, height,
 			 SWP_NOZORDER);//SWP_NOMOVE
 
+		g_nEdgeWidth = width / 20;
+		break;
+	}
+	case WM_TIMER:
+	{
+		g_nCurrentFrame++;
+		
+		double dProcess = (static_cast<double>(g_nCurrentFrame) / static_cast<double>(g_nDefaultSlideFrames));//待滑动的百分比的进度
+		double dSlideWidth = dProcess * static_cast<double>(g_nSlideDistance - g_nEdgeWidth);//相较于原始左边起点每次待滑动的距离
+		int nCurrentWindowLeft = g_nOriginalWindowLeft + dSlideWidth;
+
+		RECT rcWindow;
+		GetWindowRect(hWnd, &rcWindow);
+		SetWindowPos(hWnd, NULL,
+			nCurrentWindowLeft, rcWindow.top,
+			0, 0,
+			SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+		if (g_nCurrentFrame > g_nDefaultSlideFrames)
+		{
+			KillTimer(hWnd, g_uAnimTimerID);
+			g_bIsMainWindowHide = TRUE;//此时已经隐藏好
+		}
+
 		break;
 	}
 	case WM_WINDOWPOSCHANGING:
@@ -203,7 +227,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			//MessageBoxW(hWnd, L"测试鼠标移开", L"xxxx", 0);
 			//隐藏窗口
-			SlideHideWindowToRightEdge(hWnd);
+			StartStimulateSlideHideWindowToRightEdge(hWnd);
 		}
 		break;
 		/*TRACKMOUSEEVENT tme = { 0 };

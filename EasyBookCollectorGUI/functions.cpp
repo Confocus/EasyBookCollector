@@ -1,6 +1,15 @@
 #include "functions.h"
 
 const int ANIMATION_TIME = 800;
+const int nFrameInterval = 10;
+
+BOOL g_bIsMainWindowHide = FALSE;
+int g_nCurrentFrame = 0;
+int g_nSlideDistance = 0;
+UINT_PTR g_uAnimTimerID = 1;         // 动画定时器ID
+int g_nOriginalWindowLeft = 0;
+const int g_nDefaultSlideFrames = 100;
+int g_nEdgeWidth = 0;
 
 std::optional<bool> IsMainWindowTouchScreenEdge(HWND hWnd)
 {
@@ -29,6 +38,30 @@ std::optional<bool> IsMainWindowTouchScreenEdge(HWND hWnd)
 	}
 
 	return abs(nScreenRight - nWindowRight) < EDGE_THRESHOLD ? TRUE : FALSE;
+}
+
+BOOL StartStimulateSlideHideWindowToRightEdge(HWND hWnd)
+{
+	if (g_bIsMainWindowHide)
+	{
+		return FALSE;
+	}
+
+	//计算Windows的左边
+	RECT rcWindow;
+	GetWindowRect(hWnd, &rcWindow);
+	g_nOriginalWindowLeft = rcWindow.left;
+
+	HMONITOR hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+	if (!hMonitor)
+	{
+		return FALSE;
+	}
+	MONITORINFO mi = { sizeof(MONITORINFO) };
+	GetMonitorInfo(hMonitor, &mi);
+	g_nSlideDistance = mi.rcWork.right - g_nOriginalWindowLeft;
+	SetTimer(hWnd, g_uAnimTimerID, nFrameInterval, NULL);
+	return TRUE;
 }
 
 //只能客户区移动，窗口的边框非客户区无法移动
