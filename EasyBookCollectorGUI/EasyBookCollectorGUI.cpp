@@ -3,10 +3,13 @@
 
 #include "framework.h"
 #include "EasyBookCollectorGUI.h"
-#include "functions.h"
+#include "CMainWindowActions.h"
 
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
+CMainWindowActions g_MainWndActions;
+BOOL g_bIsTrackRegistered = FALSE;
+#define MOUSE_LEAVE_MONITOR 2001
 
 // 全局变量:
 HINSTANCE hInst;                                // 当前实例
@@ -100,7 +103,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hInst = hInstance; // 将实例句柄存储在全局变量中
 
 	HWND hWnd = CreateWindowW(szWindowClass, szTitle,
-		WS_OVERLAPPEDWINDOW,
+		WS_POPUP,//WS_OVERLAPPEDWINDOW
 		0, 0,
 		CW_USEDEFAULT, //[in]           int       nWidth,
 		0,
@@ -133,7 +136,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_CREATE:
 	{
-		
+
 		int screenWidth = GetSystemMetrics(SM_CXSCREEN);   // 屏幕宽度
 		int screenHeight = GetSystemMetrics(SM_CYSCREEN);  // 屏幕高度
 		int width = screenWidth / 5;   // 新宽度
@@ -144,11 +147,41 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			 SWP_NOZORDER);//SWP_NOMOVE
 
 		g_nEdgeWidth = width / 20;
+		SetTimer(hWnd, MOUSE_LEAVE_MONITOR, 20, NULL);
 		break;
 	}
 	case WM_TIMER:
 	{
-		ProcessStimulateSlideHideWindowToRightEdge(hWnd);
+		UINT uTimerID = (UINT)wParam; // 获取触发的定时器ID
+		switch (uTimerID)
+		{
+		case ANIMATE_TIMER_ID:
+		{
+			g_MainWndActions.ProcessStimulateSlideHideWindowToRightEdge(hWnd);
+			break;
+		}
+		case MOUSE_LEAVE_MONITOR:
+		{
+			//有一种情况鼠标移动出窗口不会隐藏，那就是：
+		// 鼠标沿着主窗口的右边框往上或往下移动
+		if (g_MainWndActions.GetObCursorOnRightEdge())
+		{
+			POINT ptMouse;
+			GetCursorPos(&ptMouse);
+			std::optional<int> nTop = g_MainWndActions.GetMainWindowTop(hWnd).value();
+			std::optional<int> nBottom = g_MainWndActions.GetMainWindowBottom(hWnd).value();
+			if ((nTop.has_value() && nTop.value() > ptMouse.y ) || (nBottom.has_value() && nBottom.value() < ptMouse.y))
+			{
+				//触发移动
+				g_MainWndActions.SetObCursorOnRightEdge(FALSE);
+				g_MainWndActions.StartStimulateSlideHideWindowToRightEdge(hWnd);
+			}
+		}
+			break;
+		}
+		default:
+			break;
+		}
 
 		break;
 	}
@@ -188,36 +221,63 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_MOUSEMOVE:
 	{
-		TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT) };
-		tme.dwFlags = TME_LEAVE | TME_HOVER; // 同时监听悬停和离开 | 
-		tme.hwndTrack = hWnd;
-		tme.dwHoverTime = HOVER_TIME; // 300ms悬停触发
-		TrackMouseEvent(&tme);
+		//这段代码是向 Windows 系统注册 “鼠标离开窗口” 和 “鼠标悬停在窗口内” 的监听，让窗口能收到 WM_MOUSELEAVE 和 WM_MOUSEHOVER 这两个原本不会主动触发的消息。
+		if (!g_bIsTrackRegistered)
+		{
+			TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT) };
+			tme.dwFlags = TME_LEAVE | TME_HOVER; // 同时监听悬停和离开 | 
+			tme.hwndTrack = hWnd;
+			tme.dwHoverTime = HOVER_TIME; // 300ms悬停触发
+			TrackMouseEvent(&tme);
+			g_bIsTrackRegistered = TRUE;
+		}
+
+		
 		break;
 	}
 	case WM_MOUSEHOVER:
 	{
-		ShowHidedWindowFromRightSide(hWnd);
-		//MessageBoxW(hWnd, L"xuanting", L"xxxxx", 0);
-		//TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT) };
-		//tme.dwFlags = TME_HOVER | TME_LEAVE; // 同时监听悬停和离开
-		//tme.hwndTrack = hWnd;
-		//tme.dwHoverTime = HOVER_TIME; // 300ms悬停触发
-		//TrackMouseEvent(&tme);
+		g_bIsTrackRegistered = FALSE;
+		if (g_bIsMainWindowHide == TRUE)
+		{
+			g_MainWndActions.ShowHidedWindowFromRightSide(hWnd);
+		}
 		break;
 	}
 	case WM_MOUSELEAVE:
 	{
-		std::optional<BOOL> bTouch = IsMainWindowTouchScreenEdge(hWnd);
-		if (bTouch)
+		do 
 		{
-			//MessageBoxW(hWnd, L"测试鼠标移开", L"xxxx", 0);
-			//隐藏窗口
-			StartStimulateSlideHideWindowToRightEdge(hWnd);
-		}
+			g_bIsTrackRegistered = FALSE;
+			std::optional<BOOL> bTouchRightEdge = g_MainWndActions.IsMainWindowTouchScreenEdge(hWnd);
+			std::optional<BOOL> bAtRight = g_MainWndActions.IsMouseOnMainWindowRightEdge(hWnd);
+			//保证窗口贴着边，且鼠标不在窗口右侧才隐藏 
+			//std::optional 的取反针对「是否有值」，而非「值的内容」
+			//BOOL b = bAtRight.value();
+			if (bAtRight.value())
+			{
+				g_MainWndActions.SetObCursorOnRightEdge(TRUE);
+				break;
+			}
+
+			//如果触碰了右边边界，且鼠标不在在右边边界附近即是从其它方向挪出来的
+			//有一种情况会出现Bug，就是鼠标先快速从上面移出，在窗口移动的过程中，再迅速让鼠标从左边移出，
+			//这样记录的就是正在移动的过程中的窗口的左上角坐标，此时再赋值给g_nOriginalWindowLeft就不是
+			//窗口默认打开时候的位置了
+			if (bTouchRightEdge && !bAtRight.value())//  
+			{
+				//隐藏窗口
+				g_MainWndActions.StartStimulateSlideHideWindowToRightEdge(hWnd);
+				g_MainWndActions.SetObCursorOnRightEdge(FALSE);
+				break;
+			}
+			
+		} while (0);
+		
 		break;
 	}
 	case WM_DESTROY:
+		KillTimer(hWnd, MOUSE_LEAVE_MONITOR);
 		PostQuitMessage(0);
 		break;
 	default:

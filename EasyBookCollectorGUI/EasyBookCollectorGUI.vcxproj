@@ -128,15 +128,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CMainWindowActions.h" />
     <ClInclude Include="EasyBookCollectorGUI.h" />
     <ClInclude Include="framework.h" />
-    <ClInclude Include="functions.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CMainWindowActions.cpp" />
     <ClCompile Include="EasyBookCollectorGUI.cpp" />
-    <ClCompile Include="functions.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="EasyBookCollectorGUI.rc" />
