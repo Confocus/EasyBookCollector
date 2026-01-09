@@ -28,7 +28,7 @@ public:
 	VOID SetObCursorOnRightEdge(BOOL);
 	std::optional<int> GetMainWindowTop(HWND hWnd);
 	std::optional<int> GetMainWindowBottom(HWND hWnd);
-
+	bool IsMouseReallyLeaveMainWnd(HWND hWnd);
 private:
 	BOOL m_bIsCursorOnMainWnd;
 	BOOL m_bCursorOnRightEdge;

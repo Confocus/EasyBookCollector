@@ -4,12 +4,15 @@
 #include "framework.h"
 #include "EasyBookCollectorGUI.h"
 #include "CMainWindowActions.h"
+#include <commctrl.h>
+#pragma comment(lib, "comctl32.lib")
 
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 CMainWindowActions g_MainWndActions;
 BOOL g_bIsTrackRegistered = FALSE;
 #define MOUSE_LEAVE_MONITOR 2001
+#define IDC_BTN_DIRECTORY 3001 // 目录按钮ID
 
 // 全局变量:
 HINSTANCE hInst;                                // 当前实例
@@ -132,10 +135,91 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	static HBRUSH hBrush = CreateSolidBrush(RGB(230, 230, 230));
+	static HWND hListBox = NULL;
+
 	switch (message)
 	{
+	case WM_ERASEBKGND:
+	{
+		HDC hdc = (HDC)wParam;
+
+		RECT rc;
+		GetClientRect(hWnd, &rc);
+		FillRect(hdc, &rc, hBrush);
+
+		return 1; // 告诉系统：我已经擦过背景了
+	}
 	case WM_CREATE:
 	{
+		//hListBox = CreateWindow(
+		//	WC_LISTBOX,          // ★固定：ListBox控件类名
+		//	TEXT(""),            // 控件标题(没用，ListBox内容靠AddString添加)
+		//	WS_CHILD | WS_VISIBLE | LBS_NOTIFY , // ★必选样式：子控件+可见| LBS_MULTICOLUMN
+		//	20, 20,              // 控件左上角坐标 X,Y (相对于父窗口客户区)
+		//	200, 300,            // 控件宽高 W,H
+		//	hWnd,                // 父窗口句柄
+		//	(HMENU)3001,         // ★控件ID(自定义，比如1001，唯一即可，用于响应事件)
+		//	(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), // 程序实例句柄
+		//	NULL                 // 扩展参数，固定为NULL
+		//);
+		hListBox = CreateWindowEx(
+			0,  // ★扩展样式：0 = 无边框，WS_EX_CLIENTEDGE = 有边框
+			WC_LISTBOX,
+			TEXT(""),
+			WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
+			20, 20, 200, 300,
+			hWnd, (HMENU)1001, hInst, NULL
+		);
+		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)L"第一项");
+		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)L"第二项");
+		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)L"第三项");
+		//SendMessage(hListBox, LB_SETCOLUMNWIDTH, 80, 0);
+
+		//INITCOMMONCONTROLSEX icc = {};
+		//icc.dwSize = sizeof(icc);
+		//icc.dwICC = ICC_TREEVIEW_CLASSES;
+		//InitCommonControlsEx(&icc);
+
+		//HWND hTree = CreateWindowW(
+		//	WC_TREEVIEW, _T("目录"),
+		//	WS_CHILD | WS_VISIBLE | TVS_HASLINES | TVS_HASBUTTONS | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
+		//	100, 100, 100, 100,
+		//	hWnd, (HMENU)3001,
+		//	(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		//	NULL);
+		////插入一个根节点
+		//TVINSERTSTRUCTW tvis = {};
+		//tvis.hParent = TVI_ROOT;
+		//tvis.hInsertAfter = TVI_LAST;
+		//tvis.item.mask = TVIF_TEXT;
+		//tvis.item.pszText = (LPWSTR)L"Root";
+
+		//HTREEITEM hRoot = (HTREEITEM)SendMessageW(
+		//	hTree, TVM_INSERTITEMW, 0, (LPARAM)&tvis
+		//);
+		//// 插入一个子节点
+		//tvis.hParent = hRoot;
+		//tvis.item.pszText = (LPWSTR)L"Child";
+
+		//SendMessageW(hTree, TVM_INSERTITEMW, 0, (LPARAM)&tvis);
+
+		//HWND hTree2 = CreateWindowW(
+		//	WC_TREEVIEW, _T("目录2"),
+		//	WS_CHILD | WS_VISIBLE | TVS_HASLINES | TVS_HASBUTTONS | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
+		//	200, 100, 100, 100,
+		//	hWnd, (HMENU)3002,
+		//	(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		//	NULL);
+		////插入一个根节点
+		//TVINSERTSTRUCTW tvis2 = {};
+		//tvis2.hParent = TVI_ROOT;
+		//tvis2.hInsertAfter = TVI_LAST;
+		//tvis2.item.mask = TVIF_TEXT;
+		//tvis2.item.pszText = (LPWSTR)L"Root2";
+		//HTREEITEM hRoot2 = (HTREEITEM)SendMessageW(
+		//	hTree2, TVM_INSERTITEMW, 0, (LPARAM)&tvis2
+		//);
 
 		int screenWidth = GetSystemMetrics(SM_CXSCREEN);   // 屏幕宽度
 		int screenHeight = GetSystemMetrics(SM_CYSCREEN);  // 屏幕高度
@@ -162,6 +246,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		case MOUSE_LEAVE_MONITOR:
 		{
+			
 			//有一种情况鼠标移动出窗口不会隐藏，那就是：
 		// 鼠标沿着主窗口的右边框往上或往下移动
 		if (g_MainWndActions.GetObCursorOnRightEdge())
@@ -192,6 +277,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_COMMAND:
 	{
 		int wmId = LOWORD(wParam);
+		if (LOWORD(wParam) == 3001)
+		{
+			if (HIWORD(wParam) == LBN_SELCHANGE)
+			{
+				// 选中项改变
+					int index = (int)SendMessage(hListBox, LB_GETCURSEL, 0, 0);
+					if (index != LB_ERR)
+					{
+						wchar_t text[256];
+						SendMessage(hListBox, LB_GETTEXT, index, (LPARAM)text);
+						MessageBox(hWnd, text, L"你选中了", MB_OK);
+					}
+			}
+			else if (HIWORD(wParam) == LBN_DBLCLK)
+			{
+				// 双击
+			}
+		}
 		// 分析菜单选择:
 		switch (wmId)
 		{
@@ -203,6 +306,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
+		}
+
+		if (LOWORD(wParam) == IDC_BTN_DIRECTORY && HIWORD(wParam) == BN_CLICKED)
+		{
+
 		}
 	}
 	break;
@@ -257,6 +365,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (bAtRight.value())
 			{
 				g_MainWndActions.SetObCursorOnRightEdge(TRUE);
+				break;
+			}
+
+			//如果是悬浮在某个子控件上
+			if (!g_MainWndActions.IsMouseReallyLeaveMainWnd(hWnd))
+			{
 				break;
 			}
 

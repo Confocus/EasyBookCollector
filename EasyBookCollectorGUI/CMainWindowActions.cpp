@@ -162,3 +162,19 @@ std::optional<int> CMainWindowActions::GetMainWindowBottom(HWND hWnd)
 
 	return rcWindow.bottom;
 }
+
+bool CMainWindowActions::IsMouseReallyLeaveMainWnd(HWND hWnd)
+{
+	// 1. 获取主窗口的屏幕矩形（包含边框、标题栏、所有子控件）
+	RECT rcMainWnd;
+	GetWindowRect(hWnd, &rcMainWnd);
+
+	// 2. 获取当前鼠标的屏幕坐标
+	POINT ptCursor;
+	GetCursorPos(&ptCursor);
+
+	// 3. 判定：鼠标是否在主窗口矩形外 → 才是真的离开
+	bool bLeave = !PtInRect(&rcMainWnd, ptCursor);
+
+	return bLeave;
+}
