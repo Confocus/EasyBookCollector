@@ -9,11 +9,18 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <memory>
+#include <tchar.h>
 
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 CMainWindowActions g_MainWndActions;
 BOOL g_bIsTrackRegistered = FALSE;
+const int g_nListSpace = 10;
+const int g_nListWidth = 180;
+const int g_nListHeight = 300;
+std::vector<std::vector<HWND>> g_vListBoxHwnd;
+
 #define MOUSE_LEAVE_MONITOR 2001
 #define ID_LISTBOX 3001 // 目录按钮ID
 
@@ -126,6 +133,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	return TRUE;
 }
 
+std::optional<int> FindListBoxLevel(const std::vector<std::vector<HWND>>& vec2d, HWND hWnd) {
+	for (size_t i = 0; i < vec2d.size(); ++i) {
+		const auto& sub = vec2d[i];
+		if (std::find(sub.begin(), sub.end(), hWnd) != sub.end()) {
+			return static_cast<int>(i); // 找到了，返回第 i 个数组
+		}
+	}
+	return std::nullopt; // 没找到
+}
+
 //
 //  函数: WndProc(HWND, UINT, WPARAM, LPARAM)
 //
@@ -139,7 +156,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	static HBRUSH hBrush = CreateSolidBrush(RGB(230, 230, 230));
-	static HWND hListBox = NULL;
+	static HWND hMainListBox = NULL;
 
 	switch (message)
 	{
@@ -155,18 +172,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_CREATE:
 	{
-		//hListBox = CreateWindow(
-		//	WC_LISTBOX,          // ★固定：ListBox控件类名
-		//	TEXT(""),            // 控件标题(没用，ListBox内容靠AddString添加)
-		//	WS_CHILD | WS_VISIBLE | LBS_NOTIFY , // ★必选样式：子控件+可见| LBS_MULTICOLUMN
-		//	20, 20,              // 控件左上角坐标 X,Y (相对于父窗口客户区)
-		//	200, 300,            // 控件宽高 W,H
-		//	hWnd,                // 父窗口句柄
-		//	(HMENU)3001,         // ★控件ID(自定义，比如1001，唯一即可，用于响应事件)
-		//	(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), // 程序实例句柄
-		//	NULL                 // 扩展参数，固定为NULL
-		//);
-		hListBox = CreateWindowEx(
+		hMainListBox = CreateWindowEx(
 			0,  // ★扩展样式：0 = 无边框，WS_EX_CLIENTEDGE = 有边框
 			WC_LISTBOX,
 			TEXT(""),
@@ -174,10 +180,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//如果你不处理 WM_DRAWITEM，系统就什么都不会画。
 			20, 20, 200, 300,
 			hWnd, (HMENU)ID_LISTBOX, hInst, NULL
-		);
-
+		); 
+		g_vListBoxHwnd.resize(5);
+		g_vListBoxHwnd.at(0).push_back(hMainListBox);
+		//g_vListBoxHwnd.push_back(hMainListBox);
 		//set the height of item
-		SendMessage(hListBox, LB_SETITEMHEIGHT, 0, 40);
+		SendMessage(hMainListBox, LB_SETITEMHEIGHT, 0, 40);
 		// 这里为什么正确：
 		/*items[i] 指向静态区字符串
 		LB_ADDSTRING 会 复制字符串 到 ListBox 内部
@@ -188,7 +196,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				TEXT("图片"), TEXT("视频"), TEXT("音乐"),
 				TEXT("此电脑"), TEXT("回收站")
 		};
-	
 		int count = sizeof(items) / sizeof(items[0]);
 		for (int i = 0; i < count; i++) {
 			SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)items[i]);
@@ -202,9 +209,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		//	SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
 		//	});
 		//所以这里加个static即可
-		static std::vector<std::wstring> vItem = { L"桌面", L"文档", L"下载", L"图片", L"视频", L"音乐", L"此电脑", L"回收站" };//
+		static std::vector<std::wstring> vItem = { L"临时存放", L"优先", L"核心能力", L"核心能力但不那么好", L"非核心能力" , L"其它" };//
 		std::for_each(vItem.begin(), vItem.end(), [](const std::wstring& item) {
-			SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
+			SendMessage(hMainListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
 			});
 
 		int screenWidth = GetSystemMetrics(SM_CXSCREEN);   // 屏幕宽度
@@ -224,53 +231,66 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		LPDRAWITEMSTRUCT pDIS = (LPDRAWITEMSTRUCT)lParam;
 		// 只处理我们的ListBox控件
-		if (pDIS->CtlID != ID_LISTBOX || pDIS->itemID == LB_ERR) break;
-
-		HDC hdc = pDIS->hDC;
-		RECT rc = pDIS->rcItem;  // 获取当前项的原始绘制矩形
-		int nItem = pDIS->itemID;// 当前项的索引
-
-		// ✅ ✅ ✅ 核心代码【实现项间距】：向内收缩矩形，留出空白
-		rc.top += 3;     // 上边距：3像素
-		rc.bottom -= 3;  // 下边距：3像素
-		rc.left += 6;    // 左边距：6像素
-		rc.right -= 6;   // 右边距：6像素
-
-		// ✅ 绘制项的背景：选中时淡蓝色高亮，未选中时纯白色
-		HBRUSH hBrush;
-		if (pDIS->itemState & ODS_SELECTED)
+		//if (pDIS->CtlID != ID_LISTBOX || pDIS->itemID == LB_ERR) break;
+		std::optional<int> nIndex = FindListBoxLevel(g_vListBoxHwnd, pDIS->hwndItem);
+		if (!nIndex.has_value())
 		{
-			hBrush = CreateSolidBrush(RGB(202, 220, 250)); // Win11淡蓝色高亮，不刺眼
+			break;
 		}
-		else
+
+		if (0 == nIndex)//主ListBoxpDIS->hwndItem == g_hMainListBox
 		{
-			hBrush = CreateSolidBrush(RGB(255, 255, 255)); // 纯白色背景
+			HDC hdc = pDIS->hDC;
+			RECT rc = pDIS->rcItem;  // 获取当前项的原始绘制矩形
+			int nItem = pDIS->itemID;// 当前项的索引
+
+			// ✅ ✅ ✅ 核心代码【实现项间距】：向内收缩矩形，留出空白
+			rc.top += 3;     // 上边距：3像素
+			rc.bottom -= 3;  // 下边距：3像素
+			rc.left += 6;    // 左边距：6像素
+			rc.right -= 6;   // 右边距：6像素
+
+			// ✅ 绘制项的背景：选中时淡蓝色高亮，未选中时纯白色
+			HBRUSH hBrush;
+			if (pDIS->itemState & ODS_SELECTED)
+			{
+				hBrush = CreateSolidBrush(RGB(202, 220, 250)); // Win11淡蓝色高亮，不刺眼
+			}
+			else
+			{
+				hBrush = CreateSolidBrush(RGB(255, 255, 255)); // 纯白色背景
+			}
+			FillRect(hdc, &rc, hBrush);
+			DeleteObject(hBrush); // 释放画笔，防止内存泄漏
+
+			// ✅ 绘制文件夹小图标
+			//DrawIcon(hdc, rc.left + 5, rc.top + 3, hFolderIcon);
+
+			// ✅ 绘制项的文字：避开图标，左对齐，黑色文字，透明背景
+			int len = SendMessage(pDIS->hwndItem, LB_GETTEXTLEN, nItem, 0);
+			std::wstring wBuff(256, L'\0');
+			//注意这里的错误
+			//WCHAR szBuff[256] = { 0 };//这里传递一个数组，
+			//SendMessage(pDIS->hwndItem, LB_GETTEXT, nItem, (LPARAM)szBuff);
+			//WCHAR szBuff[256] = { 0 };
+
+			wchar_t* p = NULL;//传递一个指针，然后拿到指向那些字符串常量的地址
+			SendMessage(pDIS->hwndItem, LB_GETTEXT, nItem, (LPARAM)&p);//传递&p更改的是p的值，那么传szBuff,更改的不就是*szBuff的值了么
+			//wBuff.resize(wcslen(wBuff.data())); // 去掉多余 '\0'
+			SetBkMode(hdc, TRANSPARENT);          // 文字背景透明，必加
+			SetTextColor(hdc, RGB(20, 20, 20));   // 深灰色文字，比纯黑更柔和
+			// 文字绘制区域：向右偏移35像素，避开图标
+			RECT rcText = rc;
+			rcText.left += 35;
+			DrawText(hdc, p, -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+			break;
+			return TRUE; // 告诉系统：自己绘制完成，无需默认绘制
 		}
-		FillRect(hdc, &rc, hBrush);
-		DeleteObject(hBrush); // 释放画笔，防止内存泄漏
-
-		// ✅ 绘制文件夹小图标
-		//DrawIcon(hdc, rc.left + 5, rc.top + 3, hFolderIcon);
-
-		// ✅ 绘制项的文字：避开图标，左对齐，黑色文字，透明背景
-		int len = SendMessage(pDIS->hwndItem, LB_GETTEXTLEN, nItem, 0);
-		std::wstring wBuff(256, L'\0');
-		//注意这里的错误
-		//WCHAR szBuff[256] = { 0 };//这里传递一个数组，
-		//SendMessage(pDIS->hwndItem, LB_GETTEXT, nItem, (LPARAM)szBuff);
-		//WCHAR szBuff[256] = { 0 };
-
-		wchar_t* p = NULL;//传递一个指针，然后拿到指向那些字符串常量的地址
-		SendMessage(pDIS->hwndItem, LB_GETTEXT, nItem, (LPARAM)&p);//传递&p更改的是p的值，那么传szBuff,更改的不就是*szBuff的值了么
-		//wBuff.resize(wcslen(wBuff.data())); // 去掉多余 '\0'
-		SetBkMode(hdc, TRANSPARENT);          // 文字背景透明，必加
-		SetTextColor(hdc, RGB(20, 20, 20));   // 深灰色文字，比纯黑更柔和
-		// 文字绘制区域：向右偏移35像素，避开图标
-		RECT rcText = rc;
-		rcText.left += 35;
-		DrawText(hdc, p, -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-		return TRUE; // 告诉系统：自己绘制完成，无需默认绘制
+		/*for (auto i : g_vListBoxHwnd)
+		{
+			
+		}*/
+		
 		break;
 	}
 	case WM_TIMER:
@@ -286,8 +306,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case MOUSE_LEAVE_MONITOR:
 		{
 			
-			//有一种情况鼠标移动出窗口不会隐藏，那就是：
-		// 鼠标沿着主窗口的右边框往上或往下移动
+		//有一种情况鼠标移动出窗口不会隐藏，那就是：鼠标沿着主窗口的右边框往上或往下移动
 		if (g_MainWndActions.GetObCursorOnRightEdge())
 		{
 			POINT ptMouse;
@@ -311,27 +330,56 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_COMMAND:
 	{
-		int wmId = LOWORD(wParam);
-		if (LOWORD(wParam) == 3001)
+		if (HIWORD(wParam) == LBN_SELCHANGE)
 		{
-			if (HIWORD(wParam) == LBN_SELCHANGE)
+			// 选中项改变
+			int index = (int)SendMessage(hMainListBox, LB_GETCURSEL, 0, 0);
+			HWND hSenderList = (HWND)lParam;
+			//TODO:这里查下发送消息的HWND属于哪一级别
+			if (index != LB_ERR)
 			{
-				// 选中项改变
-					int index = (int)SendMessage(hListBox, LB_GETCURSEL, 0, 0);
-					if (index != LB_ERR)
-					{
-						wchar_t* text[256] = {0};
-						SendMessage(hListBox, LB_GETTEXT, index, (LPARAM)text);
-						MessageBox(hWnd, *text, L"你选中了", MB_OK);
-					}
-			}
-			else if (HIWORD(wParam) == LBN_DBLCLK)
-			{
-				// 双击
+				wchar_t* pMsg = nullptr;
+				SendMessage(hMainListBox, LB_GETTEXT, index, (LPARAM)&pMsg);
+				if (nullptr == pMsg)
+				{
+					break;
+				}
+				
+				RECT rcParent;
+				GetWindowRect(hSenderList, &rcParent);
+				ScreenToClient(hWnd, (POINT*)&rcParent);
+
+				// 4. 动态创建【下一级】ListBox（ID自动分配，无需关心具体值）
+				HWND hChildList = CreateWindowEx(
+					0,  
+					WC_LISTBOX,
+					TEXT(""),
+					WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | LBS_OWNERDRAWFIXED,
+					//如果你不处理 WM_DRAWITEM，系统就什么都不会画。
+					rcParent.left - g_nListSpace - g_nListWidth, rcParent.top, g_nListWidth, g_nListHeight,
+					hWnd, (HMENU)ID_LISTBOX + 1, hInst, NULL
+				);
+				//g_vListBoxHwnd.push_back(hChildList);
+				/*SetBkColor(hChildList, RGB(200, 200, 255));
+				SetTextColor(hChildList, RGB(0, 0, 0));*/
+				// 5. 准备填充下一级数据
+				//GetChildDataByParentIndex(nSelIndex);
+				std::vector<const TCHAR*> vecChildData = { TEXT("text"), TEXT("text"), TEXT("text"), TEXT("text") };
+				for (size_t i = 0; i < vecChildData.size(); i++)
+					SendMessage(hChildList, LB_ADDSTRING, 0, (LPARAM)vecChildData[i]);
+
+
+				break;
+
 			}
 		}
+		else if (HIWORD(wParam) == LBN_DBLCLK)
+		{
+			// 双击
+		}
+
 		// 分析菜单选择:
-		switch (wmId)
+		switch (LOWORD(wParam))
 		{
 		case IDM_ABOUT:
 			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
