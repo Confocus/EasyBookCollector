@@ -6,13 +6,16 @@
 #include "CMainWindowActions.h"
 #include <commctrl.h>
 #pragma comment(lib, "comctl32.lib")
+#include <vector>
+#include <string>
+#include <algorithm>
 
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 CMainWindowActions g_MainWndActions;
 BOOL g_bIsTrackRegistered = FALSE;
 #define MOUSE_LEAVE_MONITOR 2001
-#define IDC_BTN_DIRECTORY 3001 // 目录按钮ID
+#define ID_LISTBOX 3001 // 目录按钮ID
 
 // 全局变量:
 HINSTANCE hInst;                                // 当前实例
@@ -167,59 +170,42 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			0,  // ★扩展样式：0 = 无边框，WS_EX_CLIENTEDGE = 有边框
 			WC_LISTBOX,
 			TEXT(""),
-			WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
+			WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | LBS_OWNERDRAWFIXED,//  LBS_OWNERDRAWFIXED// 自定义绘制的最优样式组合（必记，你的需求专属）ListBox 的“绘制责任”已经完全交给你了，
+			//如果你不处理 WM_DRAWITEM，系统就什么都不会画。
 			20, 20, 200, 300,
-			hWnd, (HMENU)1001, hInst, NULL
+			hWnd, (HMENU)ID_LISTBOX, hInst, NULL
 		);
-		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)L"第一项");
-		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)L"第二项");
-		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)L"第三项");
-		//SendMessage(hListBox, LB_SETCOLUMNWIDTH, 80, 0);
 
-		//INITCOMMONCONTROLSEX icc = {};
-		//icc.dwSize = sizeof(icc);
-		//icc.dwICC = ICC_TREEVIEW_CLASSES;
-		//InitCommonControlsEx(&icc);
+		//set the height of item
+		SendMessage(hListBox, LB_SETITEMHEIGHT, 0, 40);
+		// 这里为什么正确：
+		/*items[i] 指向静态区字符串
+		LB_ADDSTRING 会 复制字符串 到 ListBox 内部
+			无论你什么时候调用 LB_GETTEXT，都能取到* /
+		//const WCHAR* items[] = { L"桌面" ,L"文档",L"下载",L"图片",L"视频",L"音乐",L"此电脑",L"回收站" };//
+		/*const WCHAR* items[] = {
+				TEXT("桌面"), TEXT("文档"), TEXT("下载"),
+				TEXT("图片"), TEXT("视频"), TEXT("音乐"),
+				TEXT("此电脑"), TEXT("回收站")
+		};
+	
+		int count = sizeof(items) / sizeof(items[0]);
+		for (int i = 0; i < count; i++) {
+			SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)items[i]);
+		}*/
+		
 
-		//HWND hTree = CreateWindowW(
-		//	WC_TREEVIEW, _T("目录"),
-		//	WS_CHILD | WS_VISIBLE | TVS_HASLINES | TVS_HASBUTTONS | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
-		//	100, 100, 100, 100,
-		//	hWnd, (HMENU)3001,
-		//	(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-		//	NULL);
-		////插入一个根节点
-		//TVINSERTSTRUCTW tvis = {};
-		//tvis.hParent = TVI_ROOT;
-		//tvis.hInsertAfter = TVI_LAST;
-		//tvis.item.mask = TVIF_TEXT;
-		//tvis.item.pszText = (LPWSTR)L"Root";
-
-		//HTREEITEM hRoot = (HTREEITEM)SendMessageW(
-		//	hTree, TVM_INSERTITEMW, 0, (LPARAM)&tvis
-		//);
-		//// 插入一个子节点
-		//tvis.hParent = hRoot;
-		//tvis.item.pszText = (LPWSTR)L"Child";
-
-		//SendMessageW(hTree, TVM_INSERTITEMW, 0, (LPARAM)&tvis);
-
-		//HWND hTree2 = CreateWindowW(
-		//	WC_TREEVIEW, _T("目录2"),
-		//	WS_CHILD | WS_VISIBLE | TVS_HASLINES | TVS_HASBUTTONS | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
-		//	200, 100, 100, 100,
-		//	hWnd, (HMENU)3002,
-		//	(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-		//	NULL);
-		////插入一个根节点
-		//TVINSERTSTRUCTW tvis2 = {};
-		//tvis2.hParent = TVI_ROOT;
-		//tvis2.hInsertAfter = TVI_LAST;
-		//tvis2.item.mask = TVIF_TEXT;
-		//tvis2.item.pszText = (LPWSTR)L"Root2";
-		//HTREEITEM hRoot2 = (HTREEITEM)SendMessageW(
-		//	hTree2, TVM_INSERTITEMW, 0, (LPARAM)&tvis2
-		//);
+		//这里为什么错误：
+		//item.c_str() 返回的是 std::wstring 内部的 指针,LB_GETTEXT取指针的时候已经超出了作用域。后面取的时候其实只是取指针。
+		//std::vector<std::wstring> vItem = { L"桌面", L"文档", L"下载", L"图片", L"视频", L"音乐", L"此电脑", L"回收站" };//
+		//std::for_each(vItem.begin(), vItem.end(), [](const std::wstring& item) {
+		//	SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
+		//	});
+		//所以这里加个static即可
+		static std::vector<std::wstring> vItem = { L"桌面", L"文档", L"下载", L"图片", L"视频", L"音乐", L"此电脑", L"回收站" };//
+		std::for_each(vItem.begin(), vItem.end(), [](const std::wstring& item) {
+			SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
+			});
 
 		int screenWidth = GetSystemMetrics(SM_CXSCREEN);   // 屏幕宽度
 		int screenHeight = GetSystemMetrics(SM_CYSCREEN);  // 屏幕高度
@@ -232,6 +218,59 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		g_nEdgeWidth = width / 20;
 		SetTimer(hWnd, MOUSE_LEAVE_MONITOR, 20, NULL);
+		break;
+	}
+	case WM_DRAWITEM:
+	{
+		LPDRAWITEMSTRUCT pDIS = (LPDRAWITEMSTRUCT)lParam;
+		// 只处理我们的ListBox控件
+		if (pDIS->CtlID != ID_LISTBOX || pDIS->itemID == LB_ERR) break;
+
+		HDC hdc = pDIS->hDC;
+		RECT rc = pDIS->rcItem;  // 获取当前项的原始绘制矩形
+		int nItem = pDIS->itemID;// 当前项的索引
+
+		// ✅ ✅ ✅ 核心代码【实现项间距】：向内收缩矩形，留出空白
+		rc.top += 3;     // 上边距：3像素
+		rc.bottom -= 3;  // 下边距：3像素
+		rc.left += 6;    // 左边距：6像素
+		rc.right -= 6;   // 右边距：6像素
+
+		// ✅ 绘制项的背景：选中时淡蓝色高亮，未选中时纯白色
+		HBRUSH hBrush;
+		if (pDIS->itemState & ODS_SELECTED)
+		{
+			hBrush = CreateSolidBrush(RGB(202, 220, 250)); // Win11淡蓝色高亮，不刺眼
+		}
+		else
+		{
+			hBrush = CreateSolidBrush(RGB(255, 255, 255)); // 纯白色背景
+		}
+		FillRect(hdc, &rc, hBrush);
+		DeleteObject(hBrush); // 释放画笔，防止内存泄漏
+
+		// ✅ 绘制文件夹小图标
+		//DrawIcon(hdc, rc.left + 5, rc.top + 3, hFolderIcon);
+
+		// ✅ 绘制项的文字：避开图标，左对齐，黑色文字，透明背景
+		int len = SendMessage(pDIS->hwndItem, LB_GETTEXTLEN, nItem, 0);
+		std::wstring wBuff(256, L'\0');
+		//注意这里的错误
+		//WCHAR szBuff[256] = { 0 };//这里传递一个数组，
+		//SendMessage(pDIS->hwndItem, LB_GETTEXT, nItem, (LPARAM)szBuff);
+		//WCHAR szBuff[256] = { 0 };
+
+		wchar_t* p = NULL;//传递一个指针，然后拿到指向那些字符串常量的地址
+		SendMessage(pDIS->hwndItem, LB_GETTEXT, nItem, (LPARAM)&p);//传递&p更改的是p的值，那么传szBuff,更改的不就是*szBuff的值了么
+		//wBuff.resize(wcslen(wBuff.data())); // 去掉多余 '\0'
+		SetBkMode(hdc, TRANSPARENT);          // 文字背景透明，必加
+		SetTextColor(hdc, RGB(20, 20, 20));   // 深灰色文字，比纯黑更柔和
+		// 文字绘制区域：向右偏移35像素，避开图标
+		RECT rcText = rc;
+		rcText.left += 35;
+		DrawText(hdc, p, -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+		return TRUE; // 告诉系统：自己绘制完成，无需默认绘制
 		break;
 	}
 	case WM_TIMER:
@@ -270,10 +309,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		break;
 	}
-	case WM_WINDOWPOSCHANGING:
-	{
-		break;
-	}
 	case WM_COMMAND:
 	{
 		int wmId = LOWORD(wParam);
@@ -285,9 +320,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					int index = (int)SendMessage(hListBox, LB_GETCURSEL, 0, 0);
 					if (index != LB_ERR)
 					{
-						wchar_t text[256];
+						wchar_t* text[256] = {0};
 						SendMessage(hListBox, LB_GETTEXT, index, (LPARAM)text);
-						MessageBox(hWnd, text, L"你选中了", MB_OK);
+						MessageBox(hWnd, *text, L"你选中了", MB_OK);
 					}
 			}
 			else if (HIWORD(wParam) == LBN_DBLCLK)
@@ -306,11 +341,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
-		}
-
-		if (LOWORD(wParam) == IDC_BTN_DIRECTORY && HIWORD(wParam) == BN_CLICKED)
-		{
-
 		}
 	}
 	break;
