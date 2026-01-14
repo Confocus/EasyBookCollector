@@ -20,9 +20,46 @@ const int g_nListSpace = 10;
 const int g_nListWidth = 180;
 const int g_nListHeight = 300;
 std::vector<std::vector<HWND>> g_vListBoxHwnd;
+#define MY_LISTBOX_CLASS_NAME L"MyOwnerDrawListBox_2026"
+HWND hChildList = NULL;
 
 #define MOUSE_LEAVE_MONITOR 2001
 #define ID_LISTBOX 3001 // 目录按钮ID
+
+WNDPROC g_pOldListBoxProc = NULL;
+LRESULT CALLBACK SubListBoxProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+BOOL RegisterMyListBoxClass(HINSTANCE hInst)
+{
+	// 1. 获取【系统默认WC_LISTBOX的窗口类信息】：核心！继承系统ListBox的所有特性
+	WNDCLASSEX wcSys = { 0 };
+	wcSys.cbSize = sizeof(WNDCLASSEX);
+	// 从系统获取WC_LISTBOX的完整配置，我们只需要修改窗口过程，其他全部复用
+	if (!GetClassInfoEx(NULL, WC_LISTBOX, &wcSys))
+	{
+		return FALSE;
+	}
+
+	// 2. 基于系统配置，创建我们的自定义窗口类配置，只改3个关键属性
+	WNDCLASSEX wcMy = wcSys;
+	wcMy.cbSize = sizeof(WNDCLASSEX);
+	wcMy.hInstance = hInst;                // 绑定你的程序实例句柄
+	wcMy.lpszClassName = MY_LISTBOX_CLASS_NAME;// ✅ 改成你的自定义类名
+	wcMy.lpfnWndProc = SubListBoxProc;  // ✅ 核心！绑定你的窗口过程
+	wcMy.style |= CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+	wcMy.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+	//wcMy.cbWndExtra = 4;
+	// 3. 向系统注册这个自定义类，注册成功返回TRUE，失败返回FALSE
+	ATOM atom = RegisterClassEx(&wcMy);
+	if (atom == 0)
+	{
+		return FALSE;
+	}
+
+	// ✅ 关键：保存系统默认的ListBox窗口过程地址（用于后续CallWindowProc）
+	g_pOldListBoxProc = wcSys.lpfnWndProc;
+
+	return TRUE;
+}
 
 // 全局变量:
 HINSTANCE hInst;                                // 当前实例
@@ -40,6 +77,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	_In_ LPWSTR    lpCmdLine,
 	_In_ int       nCmdShow)
 {
+	OutputDebugStringW(L"[bookcollector] wWinMain start++\n");
+
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
 
@@ -49,6 +88,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	LoadStringW(hInstance, IDC_EASYBOOKCOLLECTORGUI, szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
+	RegisterMyListBoxClass(hInstance);
 
 	// 执行应用程序初始化:
 	if (!InitInstance(hInstance, nCmdShow))
@@ -142,6 +182,184 @@ std::optional<int> FindListBoxLevel(const std::vector<std::vector<HWND>>& vec2d,
 	}
 	return std::nullopt; // 没找到
 }
+//TODO:为什么这里消息循环进步来？因为绑定的时机太晚了？
+
+LRESULT CALLBACK SubListBoxProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg)
+	{
+	case WM_CREATE:
+	{
+		OutputDebugStringW(L"[bookcollector]成功进入自定义MyGlobalListBoxProc！\n");
+		SendMessage(hWnd, LB_SETITEMHEIGHT, 0, 28);
+//		g_vListBoxHwnd.at(1).push_back(hWnd);
+		//if (hChildList)
+		{
+			//g_vListBoxHwnd.at(1).push_back(hWnd);
+			////// 5. 准备填充下一级数据
+			//std::vector<const TCHAR*> vecChildData = { TEXT("text"), TEXT("text"), TEXT("text"), TEXT("text") };
+			//for (size_t i = 0; i < vecChildData.size(); i++)
+			//	SendMessage(hWnd, LB_ADDSTRING, 0, (LPARAM)vecChildData[i]);
+
+			// 4. 子类化绑定通用Proc（关键：让ListBox能自绘）
+			//if (g_pOldListBoxProc == NULL)
+			//{
+			//	//把系统默认给 ListBox 的「消息处理函数」，替换成你自己写的 MyGlobalListBoxProc；
+			//	//同时把「被换掉的系统原函数地址」保存到 g_pOldListBoxProc 变量里，方便后续调用。
+			//	g_pOldListBoxProc = (WNDPROC)SetWindowLongPtr(hChildList, GWLP_WNDPROC, (LONG_PTR)SubListBoxProc);
+			//}
+			//else
+			//{
+			//	SetWindowLongPtr(hChildList, GWLP_WNDPROC, (LONG_PTR)SubListBoxProc);
+			//}
+
+			// 5. 强制刷新，避免白屏
+			//UpdateWindow(hWnd);
+		}
+		break;
+	}
+	case WM_DRAWITEM:
+	{
+		LPDRAWITEMSTRUCT pDIS = (LPDRAWITEMSTRUCT)lParam;
+		if (pDIS->CtlType == ODT_LISTBOX)
+		{
+			OutputDebugStringW(L"[bookcollector]终于收到WM_DRAWITEM！\n");
+			LPDRAWITEMSTRUCT pDIS = (LPDRAWITEMSTRUCT)lParam;
+			// 只处理我们的ListBox控件
+			//if (pDIS->CtlID != ID_LISTBOX || pDIS->itemID == LB_ERR) break;
+			std::optional<int> nIndex = FindListBoxLevel(g_vListBoxHwnd, pDIS->hwndItem);
+			if (!nIndex.has_value())
+			{
+				break;
+			}
+			// 你的自绘逻辑（之前写的代码直接复制过来）
+			if (1 == nIndex)
+			{
+				HDC hdc = pDIS->hDC;
+				RECT rc = pDIS->rcItem;  // 获取当前项的原始绘制矩形
+				int nItem = pDIS->itemID;// 当前项的索引
+
+				rc.top += 3;     // 上边距：3像素
+				rc.bottom -= 3;  // 下边距：3像素
+				rc.left += 6;    // 左边距：6像素
+				rc.right -= 6;   // 右边距：6像素
+
+				HBRUSH hBrush;
+				if (pDIS->itemState & ODS_SELECTED)
+				{
+					hBrush = CreateSolidBrush(RGB(202, 220, 250)); // Win11淡蓝色高亮，不刺眼
+				}
+				else
+				{
+					hBrush = CreateSolidBrush(RGB(255, 255, 255)); // 纯白色背景
+				}
+				FillRect(hdc, &rc, hBrush);
+				DeleteObject(hBrush); // 释放画笔，防止内存泄漏
+
+				int len = SendMessage(pDIS->hwndItem, LB_GETTEXTLEN, nItem, 0);
+				std::wstring wBuff(256, L'\0');
+
+				wchar_t* p = NULL;//传递一个指针，然后拿到指向那些字符串常量的地址
+				SendMessage(pDIS->hwndItem, LB_GETTEXT, nItem, (LPARAM)&p);//传递&p更改的是p的值，那么传szBuff,更改的不就是*szBuff的值了么
+				SetBkMode(hdc, TRANSPARENT);          // 文字背景透明，必加
+				SetTextColor(hdc, RGB(20, 20, 20));   // 深灰色文字，比纯黑更柔和
+				RECT rcText = rc;
+				rcText.left += 35;
+				DrawText(hdc, p, -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+			}
+			return TRUE;
+		}
+		break;
+	}
+	case WM_COMMAND:
+	{
+		if (HIWORD(wParam) == LBN_SELCHANGE)
+		{
+			// 选中项改变
+			MessageBox(NULL, L"", L"", 0);
+		}
+	else if (HIWORD(wParam) == LBN_DBLCLK)
+	{
+		// 双击
+	}
+		// 你的选中通知逻辑（之前写的代码直接复制过来）
+		MessageBox(NULL, L"", L"", 0);
+		break;
+	}
+	case WM_MOUSELEAVE:
+	{
+		MessageBox(NULL, L"", L"", 0);
+		break;
+	}
+	case WM_DESTROY:
+		// 解绑子类化，防止泄漏
+		SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)g_pOldListBoxProc);
+		break;
+	}
+	// 其他消息交给系统默认Proc处理
+	return CallWindowProc(g_pOldListBoxProc, hWnd, uMsg, wParam, lParam);
+}
+
+VOID CreateSubListBox(HWND hSenderList, HWND hWnd)
+{
+	RECT rcListBox;
+	GetWindowRect(hSenderList, &rcListBox);
+	//TODO:子ListBox没有随主窗口的滑动而滑动
+	// 
+	//// 4. 动态创建【下一级】ListBox（ID自动分配，无需关心具体值）
+	//TODO:先保存代码；再确认只有CHILD窗口才行；再采用GPT提供的方案
+	hChildList = CreateWindowEx(
+		0, // 扩展风格
+		MY_LISTBOX_CLASS_NAME,//
+		L"这是一个弹出窗口", 
+		WS_POPUP | WS_VISIBLE | LBS_NOTIFY | WS_BORDER | LBS_NOINTEGRALHEIGHT  | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS, // 
+		rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight,//100, 100, 300, 150,
+		hWnd,
+		NULL, 
+		hInst,
+		NULL 
+	);
+
+	if (hChildList)
+	{
+		/*WCHAR szClassName[256] = { 0 };
+		GetClassName(hChildList, szClassName, 256);
+		if (wcscmp(szClassName, MY_LISTBOX_CLASS_NAME) == 0)
+		{
+			OutputDebugStringW(L"[bookcollector]子ListBox成功使用自定义类！\n");
+		}
+		else
+		{
+			OutputDebugStringW(L"[bookcollector]子ListBox用的是系统类！实际类名：");
+			OutputDebugStringW(szClassName);
+			OutputDebugStringW(L"\n");
+		}*/
+
+		g_vListBoxHwnd.at(1).push_back(hChildList);
+		SendMessage(hChildList, LB_SETITEMHEIGHT, 0, 28); // 0代表所有项，28是行高(像素)，可自己调整
+		//// 5. 准备填充下一级数据
+		std::vector<const TCHAR*> vecChildData = { TEXT("text"), TEXT("text"), TEXT("text"), TEXT("text") };
+		for (size_t i = 0; i < vecChildData.size(); i++)
+			SendMessage(hChildList, LB_ADDSTRING, 0, (LPARAM)vecChildData[i]);
+		
+		//SWP_NOMOVE
+		// 4. 子类化绑定通用Proc（关键：让ListBox能自绘）
+		//if (g_pOldListBoxProc == NULL)
+		//{
+		//	//把系统默认给 ListBox 的「消息处理函数」，替换成你自己写的 MyGlobalListBoxProc；
+		//	//同时把「被换掉的系统原函数地址」保存到 g_pOldListBoxProc 变量里，方便后续调用。
+		//	g_pOldListBoxProc = (WNDPROC)SetWindowLongPtr(hChildList, GWLP_WNDPROC, (LONG_PTR)SubListBoxProc);
+		//}
+		//else
+		//{
+		//	SetWindowLongPtr(hChildList, GWLP_WNDPROC, (LONG_PTR)SubListBoxProc);
+		//}
+
+		// 5. 强制刷新，避免白屏
+		InvalidateRect(hChildList, NULL, TRUE); // 标记整个控件为「无效区域」，需要重绘
+		UpdateWindow(hChildList);               // 立即发送WM_PAINT → 进而触发WM_DRAWITEM
+	}
+}
 
 //
 //  函数: WndProc(HWND, UINT, WPARAM, LPARAM)
@@ -172,6 +390,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_CREATE:
 	{
+		WNDCLASSEX wcCheck = { 0 };
+		wcCheck.cbSize = sizeof(WNDCLASSEX);
+		if (GetClassInfoEx(hInst, MY_LISTBOX_CLASS_NAME, &wcCheck))
+		{
+			OutputDebugStringW(L"[bookcollector]自定义ListBox类注册成功！WndProc地址正确！\n");
+		}
+		else
+		{
+			OutputDebugStringW(L"[bookcollector]自定义类注册后不存在！\n");
+		}
+
 		hMainListBox = CreateWindowEx(
 			0,  // ★扩展样式：0 = 无边框，WS_EX_CLIENTEDGE = 有边框
 			WC_LISTBOX,
@@ -238,6 +467,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		}
 
+		if (hChildList == pDIS->hwndItem)
+		{
+			OutputDebugStringW(L"[bookcollector]test！\n");
+		}
+
 		if (0 == nIndex)//主ListBoxpDIS->hwndItem == g_hMainListBox
 		{
 			HDC hdc = pDIS->hDC;
@@ -283,14 +517,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			RECT rcText = rc;
 			rcText.left += 35;
 			DrawText(hdc, p, -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-			break;
 			return TRUE; // 告诉系统：自己绘制完成，无需默认绘制
 		}
-		/*for (auto i : g_vListBoxHwnd)
-		{
-			
-		}*/
-		
 		break;
 	}
 	case WM_TIMER:
@@ -338,39 +566,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//TODO:这里查下发送消息的HWND属于哪一级别
 			if (index != LB_ERR)
 			{
-				wchar_t* pMsg = nullptr;
-				SendMessage(hMainListBox, LB_GETTEXT, index, (LPARAM)&pMsg);
-				if (nullptr == pMsg)
-				{
-					break;
-				}
-				
-				RECT rcParent;
-				GetWindowRect(hSenderList, &rcParent);
-				ScreenToClient(hWnd, (POINT*)&rcParent);
-
-				// 4. 动态创建【下一级】ListBox（ID自动分配，无需关心具体值）
-				HWND hChildList = CreateWindowEx(
-					0,  
-					WC_LISTBOX,
-					TEXT(""),
-					WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | LBS_OWNERDRAWFIXED,
-					//如果你不处理 WM_DRAWITEM，系统就什么都不会画。
-					rcParent.left - g_nListSpace - g_nListWidth, rcParent.top, g_nListWidth, g_nListHeight,
-					hWnd, (HMENU)ID_LISTBOX + 1, hInst, NULL
-				);
-				//g_vListBoxHwnd.push_back(hChildList);
-				/*SetBkColor(hChildList, RGB(200, 200, 255));
-				SetTextColor(hChildList, RGB(0, 0, 0));*/
-				// 5. 准备填充下一级数据
-				//GetChildDataByParentIndex(nSelIndex);
-				std::vector<const TCHAR*> vecChildData = { TEXT("text"), TEXT("text"), TEXT("text"), TEXT("text") };
-				for (size_t i = 0; i < vecChildData.size(); i++)
-					SendMessage(hChildList, LB_ADDSTRING, 0, (LPARAM)vecChildData[i]);
-
-
+				CreateSubListBox(hSenderList, hWnd);
 				break;
-
 			}
 		}
 		else if (HIWORD(wParam) == LBN_DBLCLK)
@@ -417,7 +614,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			TrackMouseEvent(&tme);
 			g_bIsTrackRegistered = TRUE;
 		}
-
 		
 		break;
 	}
