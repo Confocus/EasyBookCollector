@@ -68,6 +68,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
 
 // 此代码模块中包含的函数的前向声明:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
+ATOM RegisterWindow2Class(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
@@ -82,14 +83,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
 
-	// TODO: 在此处放置代码。
-
 	// 初始化全局字符串
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	LoadStringW(hInstance, IDC_EASYBOOKCOLLECTORGUI, szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
 	RegisterMyListBoxClass(hInstance);
-
+	RegisterWindow2Class(hInstance);
 	// 执行应用程序初始化:
 	if (!InitInstance(hInstance, nCmdShow))
 	{
@@ -140,7 +139,25 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 
 	return RegisterClassExW(&wcex);
 }
+LRESULT CALLBACK WndProc2(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
+ATOM RegisterWindow2Class(HINSTANCE hInstance)
+{
+	WNDCLASSEXW wcex;
+	wcex.cbSize = sizeof(WNDCLASSEX);
+	wcex.style = CS_HREDRAW | CS_VREDRAW;
+	wcex.lpfnWndProc = WndProc2;
+	wcex.cbClsExtra = 0;
+	wcex.cbWndExtra = 0;
+	wcex.hInstance = hInstance;
+	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_EASYBOOKCOLLECTORGUI));
+	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+	wcex.lpszMenuName = NULL;
+	wcex.lpszClassName = L"Window2Class"; 
+	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+	return RegisterClassExW(&wcex);
+}
 //
 //   函数: InitInstance(HINSTANCE, int)
 //
@@ -182,7 +199,79 @@ std::optional<int> FindListBoxLevel(const std::vector<std::vector<HWND>>& vec2d,
 	}
 	return std::nullopt; // 没找到
 }
-//TODO:为什么这里消息循环进步来？因为绑定的时机太晚了？
+
+
+LRESULT CALLBACK WndProc2(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+		// ✅ 核心：处理ListBox2的WM_DRAWITEM自绘消息，【直接复制你主窗口的代码，一行不改】
+	case WM_DRAWITEM:
+	{
+		LPDRAWITEMSTRUCT pDIS = (LPDRAWITEMSTRUCT)lParam;
+		if (pDIS->CtlID == 3003 && pDIS->CtlType == ODT_LISTBOX && pDIS->itemID != LB_ERR)
+		{
+			HDC hdc = pDIS->hDC;
+			RECT rc = pDIS->rcItem;
+			int nItem = pDIS->itemID;
+
+			// ✅ 你的原有绘制逻辑：项间距，完全复用
+			rc.top += 3;
+			rc.bottom -= 3;
+			rc.left += 6;
+			rc.right -= 6;
+
+			// ✅ 你的原有绘制逻辑：背景色+高亮，完全复用
+			HBRUSH hBrush;
+			if (pDIS->itemState & ODS_SELECTED)
+			{
+				hBrush = CreateSolidBrush(RGB(202, 220, 250)); // Win11淡蓝色高亮
+			}
+			else
+			{
+				hBrush = CreateSolidBrush(RGB(0, 255, 255)); // 纯白色背景
+			}
+			FillRect(hdc, &rc, hBrush);
+			DeleteObject(hBrush);
+
+			// ✅ 你的原有绘制逻辑：文字获取+绘制，完全复用（已修复为数组接收，安全无崩溃）
+			WCHAR szBuff[256] = { 0 };
+			SendMessage(pDIS->hwndItem, LB_GETTEXT, nItem, (LPARAM)szBuff);
+			SetBkMode(hdc, TRANSPARENT);
+			SetTextColor(hdc, RGB(20, 20, 20));
+			RECT rcText = rc;
+			//rcText.left += 35;
+			DrawText(hdc, szBuff, -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+			return TRUE; // 告诉系统绘制完成
+		}
+		break;
+	}
+	// ✅ 处理ListBox2的选中事件 LBN_SELCHANGE，和你之前的逻辑一致
+	case WM_COMMAND:
+	{
+		//if (HIWORD(wParam) == LBN_SELCHANGE && LOWORD(wParam) == ID_LISTBOX2)
+		//{
+		//	int nSel = SendMessage(g_hListBox2, LB_GETCURSEL, 0, 0);
+		//	if (nSel != LB_ERR)
+		//	{
+		//		ShowWindow(hWnd, SW_HIDE); // 选中后隐藏窗口2，体验最佳
+		//	}
+		//}
+		break;
+	}
+	// ✅ 窗口2关闭时，销毁句柄，防止泄漏
+	case WM_DESTROY:
+	{
+		/*g_hWnd2 = NULL;
+		g_hListBox2 = NULL;*/
+		break;
+	}
+	default:
+		return DefWindowProc(hWnd, message, wParam, lParam);
+	}
+	return 0;
+}
 
 LRESULT CALLBACK SubListBoxProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -307,13 +396,13 @@ VOID CreateSubListBox(HWND hSenderList, HWND hWnd)
 	//TODO:子ListBox没有随主窗口的滑动而滑动
 	// 
 	//// 4. 动态创建【下一级】ListBox（ID自动分配，无需关心具体值）
-	//TODO:先保存代码；再确认只有CHILD窗口才行；再采用GPT提供的方案
+	//TODO:再确认只有CHILD窗口才行；再采用GPT提供的方案
 	hChildList = CreateWindowEx(
 		0, // 扩展风格
-		MY_LISTBOX_CLASS_NAME,//
+		WC_LISTBOX,//MY_LISTBOX_CLASS_NAME
 		L"这是一个弹出窗口", 
-		WS_POPUP | WS_VISIBLE | LBS_NOTIFY | WS_BORDER | LBS_NOINTEGRALHEIGHT  | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS, // 
-		rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight,//100, 100, 300, 150,
+		WS_CHILD | WS_VISIBLE | LBS_NOTIFY | WS_BORDER | LBS_NOINTEGRALHEIGHT  | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS, // WS_POPUP
+		-20,-20,40,40,//100, 100, 300, 150,rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight,
 		hWnd,
 		NULL, 
 		hInst,
@@ -359,6 +448,45 @@ VOID CreateSubListBox(HWND hSenderList, HWND hWnd)
 		InvalidateRect(hChildList, NULL, TRUE); // 标记整个控件为「无效区域」，需要重绘
 		UpdateWindow(hChildList);               // 立即发送WM_PAINT → 进而触发WM_DRAWITEM
 	}
+}
+
+VOID CreateSubWindow(HWND hSenderList, HWND hWnd)
+{
+	RECT rcListBox;
+	GetWindowRect(hSenderList, &rcListBox);
+
+	HWND hWindow2 = CreateWindowEx(
+		WS_EX_TOOLWINDOW,          // 常用于浮动工具窗口
+		L"Window2Class",//L""
+		L"test",
+		WS_POPUP | WS_VISIBLE,
+		rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight,
+		nullptr,                   // ❗没有 parent
+		nullptr,
+		hInst,
+		nullptr
+	);
+
+	HWND hListBox2 = CreateWindowEx(
+		0,
+		WC_LISTBOX,
+		TEXT(""),
+		WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS,
+		0, 0, 50, 50, // 铺满整个窗口2
+		hWindow2, (HMENU)3003, hInst, NULL
+	);
+	if (hListBox2 == NULL) return;
+
+	// 3. 设置ListBox2的行高（自绘必加，唯一的规则）
+	SendMessage(hListBox2, LB_SETITEMHEIGHT, 0, 28);
+	SendMessage(hListBox2, LB_RESETCONTENT, 0, 0); // 清空数据
+	std::vector<const TCHAR*> vecChildData = { TEXT("text1"), TEXT("text2"), TEXT("text3"), TEXT("text4") };
+	for (size_t i = 0; i < vecChildData.size(); i++)
+	{
+		SendMessage(hListBox2, LB_ADDSTRING, 0, (LPARAM)vecChildData[i]);
+	}
+	ShowWindow(hWindow2, SW_SHOW);
+	UpdateWindow(hWindow2);
 }
 
 //
@@ -564,9 +692,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			int index = (int)SendMessage(hMainListBox, LB_GETCURSEL, 0, 0);
 			HWND hSenderList = (HWND)lParam;
 			//TODO:这里查下发送消息的HWND属于哪一级别
-			if (index != LB_ERR)
+			/*if (index != LB_ERR)
 			{
 				CreateSubListBox(hSenderList, hWnd);
+				break;
+			}*/
+			if (index != LB_ERR)
+			{
+				CreateSubWindow(hSenderList, hWnd);
 				break;
 			}
 		}
@@ -593,7 +726,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hWnd, &ps);
-		// TODO: 在此处添加使用 hdc 的任何绘图代码...
 		EndPaint(hWnd, &ps);
 	}
 	break;
