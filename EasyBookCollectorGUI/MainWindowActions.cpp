@@ -1,4 +1,4 @@
-#include "CMainWindowActions.h"
+#include "MainWindowActions.h"
 const int ANIMATION_TIME = 800;
 const int nFrameInterval = 1;
 

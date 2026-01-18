@@ -11,14 +11,17 @@ extern int g_nEdgeWidth;
 
 const int EDGE_THRESHOLD = 5;
 
+//todo:这个类需要写得更抽象一些，使其适用于所有的窗口的动作
+//
 class CMainWindowActions
 {
 public:
 	CMainWindowActions(); 
 	virtual ~CMainWindowActions();
 
+	//判断窗口是否触碰到了边框
 	std::optional<BOOL> IsMainWindowTouchScreenEdge(HWND hWnd);
-	//void SlideHideWindowToRightEdge(HWND hWnd);
+	
 	BOOL StartStimulateSlideHideWindowToRightEdge(HWND hWnd);
 	VOID ProcessStimulateSlideHideWindowToRightEdge(HWND hWnd);
 	VOID ShowHidedWindowFromRightSide(HWND hWnd);

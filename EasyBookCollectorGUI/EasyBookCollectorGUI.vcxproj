@@ -128,15 +128,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="CMainWindowActions.h" />
+    <ClInclude Include="ListBoxWndManager.h" />
+    <ClInclude Include="MainWindowActions.h" />
     <ClInclude Include="EasyBookCollectorGUI.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="ListBoxWindow.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CMainWindowActions.cpp" />
+    <ClCompile Include="ListBoxWndManager.cpp" />
+    <ClCompile Include="MainWindowActions.cpp" />
     <ClCompile Include="EasyBookCollectorGUI.cpp" />
+    <ClCompile Include="ListBoxWindow.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="EasyBookCollectorGUI.rc" />
