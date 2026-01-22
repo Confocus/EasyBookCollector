@@ -95,11 +95,14 @@ CListBoxWndManager::~CListBoxWndManager()
 BOOL CListBoxWndManager::BuildListBoxWindowTree(HWND hWnd, HWND hListbox)
 {
 	std::shared_ptr<CListBoxWindowNode> spRoot = std::make_shared<CListBoxWindowNode>(hWnd, hListbox, TRUE);
-	return m_spTree->BuildListBoxWindowTree(spRoot);
+	return m_spTree->InsertListBoxWindowNode(0, spRoot);
+	//return m_spTree->BuildListBoxWindowTree(spRoot);
 }
 
 std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWndManager::CreateListBoxWindowNode(HWND hSender, int x, int y, int width, int height)//HINSTANCE hInst, 
 {
+	
+
 	m_hWindow = CreateWindowEx(
 		WS_EX_TOOLWINDOW,          // 常用于浮动工具窗口
 		LISTBOX_WINDOW_CLASS_NAME,
@@ -143,10 +146,7 @@ std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWndManager::CreateLis
 	ShowWindow(m_hWindow, SW_SHOW);
 	UpdateWindow(m_hWindow);
 
-	std::shared_ptr<CListBoxWindowNode> spNewNode = std::make_shared<CListBoxWindowNode>(m_hWindow, m_hListBox, TRUE);
-	spNewNode->SetIsShowed(TRUE);
-
-	return spNewNode;
+	return std::make_shared<CListBoxWindowNode>(m_hWindow, m_hListBox, TRUE);
 }
 
 BOOL CListBoxWndManager::RegisterListBoxWindowClass(HINSTANCE hInstance)
@@ -194,15 +194,29 @@ BOOL CListBoxWndManager::InsertNodeToTree(unsigned int nIndex, std::shared_ptr<C
 	return m_spTree->InsertListBoxWindowNode(nIndex, spNode);
 }
 
+BOOL CListBoxWndManager::BindParentAndSonNode(unsigned int nMapIndex, std::shared_ptr<CListBoxWindowNode> spParentNode, std::shared_ptr<CListBoxWindowNode> spSonNode)
+{
+	spParentNode->AddSonNode(nMapIndex, spSonNode);
+	spSonNode->SetParentNode(spParentNode);
+	spSonNode->SetParentListboxIndex(nMapIndex);
+	return TRUE;
+}
+
 std::optional<unsigned int> CListBoxWndManager::GetLevelBySenderHandle(HWND hSender) 
 {
 	
 	return m_spTree->GetListBoxLevelBySenderHandle(hSender); // 没找到
 }
 
+std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWndManager::GetNodePointerByHandle(HWND hWnd)
+{
+	return m_spTree->GetNodePointerByHandle(hWnd);
+}
+
 BOOL CListBoxWndManager::IsSubListBoxShowed(HWND hSender)
 {
 	//todo:创建hSender和Node的对应关系表，便于查找
 	//或者把hSender的值存到Node中，然后遍历树去查找
+	//在树中保存每个Listbox是否弹出了SubListbox
 	return TRUE;
 }

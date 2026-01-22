@@ -24,8 +24,10 @@ class CListBoxWindowTree
 public:
 	CListBoxWindowTree();
 	~CListBoxWindowTree();
+	[[deprecated]]
 	BOOL BuildListBoxWindowTree(std::shared_ptr<CListBoxWindowNode> spNode);
 	std::optional<int> GetListBoxLevelBySenderHandle(HWND hWnd);
+	std::optional<std::shared_ptr<CListBoxWindowNode>> GetNodePointerByHandle(HWND hWnd);
 	BOOL InsertListBoxWindowNode(int nIndex, std::shared_ptr<CListBoxWindowNode> spNode);
 private:
 	CListBoxWindowTree& operator=(const CListBoxWindowTree& other) = delete;

@@ -196,10 +196,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		//set the height of item
 		SendMessage(hMainListBox, LB_SETITEMHEIGHT, 0, 40);
 		
+		int idx = 0; 
 		//所以这里加个static即可
 		static std::vector<std::wstring> vItem = { L"临时存放", L"优先", L"核心能力", L"核心能力但不那么好", L"非核心能力" , L"其它" };//
-		std::for_each(vItem.begin(), vItem.end(), [](const std::wstring& item) {
-			SendMessage(hMainListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
+		std::for_each(vItem.begin(), vItem.end(), [&](const std::wstring& item) {
+			int itemIndex = SendMessage(hMainListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
+			SendMessage(hMainListBox, LB_SETITEMDATA, itemIndex, (LPARAM)1000 + idx++);
 			});
 
 		int screenWidth = GetSystemMetrics(SM_CXSCREEN);   // 屏幕宽度
@@ -319,15 +321,41 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_COMMAND:
 	{
-		if (HIWORD(wParam) == LBN_SELCHANGE)
+		if (HIWORD(wParam) == LBN_SELCHANGE)//点击主窗口的Listbox选项会走到这里
 		{
-			int index = (int)SendMessage(hMainListBox, LB_GETCURSEL, 0, 0);
+			//hSenderList和hWindows是一对一的关系
 			HWND hSenderList = (HWND)lParam;
+			//如果考虑到未来Listbox的项的顺序会改变，那么这个index可能没用
+			/*int index = (int)SendMessage(hMainListBox, LB_GETCURSEL, 0, 0);
 			if (index == LB_ERR)
 			{
 				break;
+			}*/
+			int selectedIndex = SendMessage(hSenderList, LB_GETCURSEL, 0, 0);
+			if (selectedIndex == LB_ERR) return NULL;
+
+			unsigned int itemId = (unsigned int)SendMessage(
+				hSenderList, LB_GETITEMDATA, selectedIndex, 0
+			);
+
+			std::optional<std::shared_ptr<CListBoxWindowNode>> optSpParentNode = g_ListBoxWndMgr.GetNodePointerByHandle(hSenderList);
+			if((*optSpParentNode)->GetSonNode())
+			if ((*optSpParentNode)->GetIsSubWndShowed())
+			{
+				//todo:执行隐藏逻辑
+				//BOOL HideWindow(HWND hWnd) {
+				//	// 第一步：校验窗口句柄有效性（必做！）
+				//	if (hWnd == NULL || !IsWindow(hWnd)) {
+				//		// 句柄无效，返回失败
+				//		SetLastError(ERROR_INVALID_WINDOW_HANDLE);
+				//		return FALSE;
+				//	}
+
+				//	// 第二步：调用ShowWindow隐藏窗口（SW_HIDE是核心）
+				//	return ShowWindow(hWnd, SW_HIDE);
+				//}
+
 			}
-			
 			//拿到父节点所在的层级
 			std::optional<int> nLevel = g_ListBoxWndMgr.GetLevelBySenderHandle(hSenderList);
 			if (!nLevel.has_value())
@@ -337,15 +365,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			RECT rcListBox;
 			GetWindowRect(hSenderList, &rcListBox);
+			
+
 			//先创建节点
-			std::optional<std::shared_ptr<CListBoxWindowNode>> spNode = g_ListBoxWndMgr.CreateListBoxWindowNode(hSenderList, rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight);
-			if (!spNode.has_value())
+			//todo:这里如何避免多次重复创建
+			std::optional<std::shared_ptr<CListBoxWindowNode>> spNewNode = g_ListBoxWndMgr.CreateListBoxWindowNode(hSenderList, rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight);
+			if (!spNewNode.has_value())
 			{
 				break;
 			}
-			//再删除节点
-			g_ListBoxWndMgr.InsertNodeToTree(nLevel.value() + 1, spNode.value());
+			(*spNewNode)->SetIsShowed(TRUE);
 
+			//再插入节点
+			//todo:用itemId拿到的ID放到父节点的vector、map中去
+			//todo:我们是否应该建立一个set
+			//todo:插入节点时建立好子节点与父节点的链接关系
+			g_ListBoxWndMgr.InsertNodeToTree(nLevel.value() + 1, spNewNode.value());
+			//
+			g_ListBoxWndMgr.BindParentAndSonNode(*optSpParentNode, *spNewNode);
 			break;
 		}
 		else if (HIWORD(wParam) == LBN_DBLCLK)

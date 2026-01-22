@@ -48,12 +48,16 @@ public:
 	*************************************************************************/
 	BOOL InsertNodeToTree(unsigned int nIndex, std::shared_ptr<CListBoxWindowNode> spNode);
 
+	BOOL BindParentAndSonNode(unsigned int nMapIndex, std::shared_ptr<CListBoxWindowNode> spParentNode, std::shared_ptr<CListBoxWindowNode> spSonNode);
+
 	/**************************************************************************
 	* @brief 根据SenderHandle拿到节点所在的层级。
 	* @param hSender
 	* @return 返回所在层级
 	*************************************************************************/
 	std::optional<unsigned int> GetLevelBySenderHandle(HWND hSender);
+
+	std::optional<std::shared_ptr<CListBoxWindowNode>> GetNodePointerByHandle(HWND hWnd);
 
 	/**************************************************************************
 	* @brief 用来检查某个ListBox的某个项下的ListboxWindow是否处于展示状态

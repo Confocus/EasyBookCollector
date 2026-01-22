@@ -21,13 +21,12 @@ BOOL CListBoxWindowTree::BuildListBoxWindowTree(std::shared_ptr<CListBoxWindowNo
 	m_vecTree.at(0).push_back(spNode);
 	return TRUE;
 }
-//todo:跑一下看看逻辑哪里不通
+
 std::optional<int> CListBoxWindowTree::GetListBoxLevelBySenderHandle(HWND hSender)
 {
 	for (size_t i = 0; i < m_vecTree.size(); ++i)
 	{
 		std::vector<std::shared_ptr<CListBoxWindowNode>> sub = m_vecTree[i];//sub = std::vector<std::shared_ptr<CListBoxWindowNode>>
-		//todo:修改find_if
 		if (std::find_if(sub.begin(), sub.end(), [=](std::shared_ptr<CListBoxWindowNode> it) {
 			return it->GetListBoxHwnd() == hSender;
 			}) != sub.end())
@@ -35,7 +34,29 @@ std::optional<int> CListBoxWindowTree::GetListBoxLevelBySenderHandle(HWND hSende
 			return static_cast<int>(i); // 找到了，返回第 i 个数组
 		}
 	}
-	return std::nullopt; // 没找到
+	return std::nullopt; 
+}
+
+std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWindowTree::GetNodePointerByHandle(HWND hWnd)
+{
+	for (size_t i = 0; i < m_vecTree.size(); ++i)
+	{
+		std::shared_ptr<CListBoxWindowNode> matchedNode = nullptr;
+		std::vector<std::shared_ptr<CListBoxWindowNode>> sub = m_vecTree[i];//sub = std::vector<std::shared_ptr<CListBoxWindowNode>>
+		//todo:修改find_if
+		if (std::find_if(sub.begin(), sub.end(), [=, &matchedNode](std::shared_ptr<CListBoxWindowNode> it) {
+			if (it->GetListBoxHwnd() == hWnd)
+			{
+				matchedNode = it;
+				return true;
+			}
+			return false;
+			}) != sub.end())
+		{
+			return matchedNode;// 找到了，返回第 i 个数组
+		}
+	}
+	return std::nullopt;
 }
 
 BOOL CListBoxWindowTree::InsertListBoxWindowNode(int nIndex, std::shared_ptr<CListBoxWindowNode> spNode)
