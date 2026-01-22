@@ -22,13 +22,12 @@ const int g_nListHeight = 300;
 
 CMainWindowActions g_MainWndActions;
 CListBoxWndManager g_ListBoxWndMgr;
-std::vector<std::vector<HWND>> g_vListBoxHwnd;
 HWND hChildList = NULL;
 
 #define MOUSE_LEAVE_MONITOR 2001
 #define ID_MAIN_LISTBOX 3001 // 目录按钮ID
 // 全局变量:
-HINSTANCE hInst;                                // 当前实例
+HINSTANCE g_hInstance;                                // 当前实例
 WCHAR szTitle[MAX_LOADSTRING];                  // 标题栏文本
 WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
 
@@ -114,7 +113,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-	hInst = hInstance; // 将实例句柄存储在全局变量中
+	g_hInstance = hInstance; // 将实例句柄存储在全局变量中
 
 	HWND hWnd = CreateWindowW(szWindowClass, szTitle,
 		WS_POPUP,//WS_OVERLAPPEDWINDOW
@@ -134,15 +133,15 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	return TRUE;
 }
 
-std::optional<int> GetListBoxLevel(const std::vector<std::vector<HWND>>& vecListboxHwnd, HWND hWnd) {
-	for (size_t i = 0; i < vecListboxHwnd.size(); ++i) {
-		const auto& sub = vecListboxHwnd[i];
-		if (std::find(sub.begin(), sub.end(), hWnd) != sub.end()) {
-			return static_cast<int>(i); // 找到了，返回第 i 个数组
-		}
-	}
-	return std::nullopt; // 没找到
-}
+//std::optional<int> GetListBoxLevel(const std::vector<std::vector<HWND>>& vecListboxHwnd, HWND hWnd) {
+//	for (size_t i = 0; i < vecListboxHwnd.size(); ++i) {
+//		const auto& sub = vecListboxHwnd[i];
+//		if (std::find(sub.begin(), sub.end(), hWnd) != sub.end()) {
+//			return static_cast<int>(i); // 找到了，返回第 i 个数组
+//		}
+//	}
+//	return std::nullopt; // 没找到
+//}
 
 //
 //  函数: WndProc(HWND, UINT, WPARAM, LPARAM)
@@ -175,7 +174,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		WNDCLASSEX wcCheck = { 0 };
 		wcCheck.cbSize = sizeof(WNDCLASSEX);
-		if (GetClassInfoEx(hInst, LISTBOX_WINDOW_CLASS_NAME, &wcCheck))
+		if (GetClassInfoEx(g_hInstance, LISTBOX_WINDOW_CLASS_NAME, &wcCheck))
 		{
 			OutputDebugStringW(L"[bookcollector]自定义ListBox类注册成功！WndProc地址正确！\n");
 		}
@@ -191,11 +190,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS,//  LBS_OWNERDRAWFIXED// 自定义绘制的最优样式组合（必记，你的需求专属）ListBox 的“绘制责任”已经完全交给你了，
 			//如果你不处理 WM_DRAWITEM，系统就什么都不会画。
 			20, 20, 200, 300,
-			hWnd, (HMENU)ID_MAIN_LISTBOX, hInst, NULL
+			hWnd, (HMENU)ID_MAIN_LISTBOX, g_hInstance, NULL
 		);
-		g_vListBoxHwnd.resize(5);
-		g_vListBoxHwnd.at(0).push_back(hMainListBox);
-		//g_vListBoxHwnd.push_back(hMainListBox);
+		
 		//set the height of item
 		SendMessage(hMainListBox, LB_SETITEMHEIGHT, 0, 40);
 		
@@ -216,6 +213,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		g_nEdgeWidth = width / 20;
 		SetTimer(hWnd, MOUSE_LEAVE_MONITOR, 20, NULL);
+
+		//创建完成时，初始化，构建根节点，记录各个ListBox和Window的关系
+		g_ListBoxWndMgr.BuildListBoxWindowTree(hWnd, hMainListBox);
 		break;
 	}
 	case WM_DRAWITEM:
@@ -223,18 +223,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		LPDRAWITEMSTRUCT pDIS = (LPDRAWITEMSTRUCT)lParam;
 		// 只处理我们的ListBox控件
 		//if (pDIS->CtlID != ID_LISTBOX || pDIS->itemID == LB_ERR) break;
-		std::optional<int> nIndex = GetListBoxLevel(g_vListBoxHwnd, pDIS->hwndItem);
-		if (!nIndex.has_value())
+		//std::optional<int> nIndex = GetListBoxLevel(g_vListBoxHwnd, pDIS->hwndItem);
+
+		/*if (!nIndex.has_value())
 		{
 			break;
-		}
+		}*/
 
-		if (hChildList == pDIS->hwndItem)
+		/*if (hChildList == pDIS->hwndItem)
 		{
 			OutputDebugStringW(L"[bookcollector]test！\n");
-		}
+		}*/
 
-		if (0 == nIndex)//主ListBoxpDIS->hwndItem == g_hMainListBox
+		//todo:确认下这里应该不用判断吧？这里是WndProc应该就是主窗口才进来
+		//if (0 == nIndex)//主ListBoxpDIS->hwndItem == g_hMainListBox
 		{
 			HDC hdc = pDIS->hDC;
 			RECT rc = pDIS->rcItem;  // 获取当前项的原始绘制矩形
@@ -275,8 +277,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			rcText.left += 35;
 			DrawText(hdc, wsText.c_str(), -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
-			//todo:创建完成时，初始化，构建根节点
-			g_ListBoxWndMgr.Initialize();
+
 			return TRUE; // 告诉系统：自己绘制完成，无需默认绘制
 		}
 		break;
@@ -326,11 +327,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				break;
 			}
+			
+			//拿到父节点所在的层级
+			std::optional<int> nLevel = g_ListBoxWndMgr.GetLevelBySenderHandle(hSenderList);
+			if (!nLevel.has_value())
+			{
+				break;
+			}
+
 			RECT rcListBox;
 			GetWindowRect(hSenderList, &rcListBox);
-			g_ListBoxWndMgr.CreateListBoxWindow(hInst,rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight);
-			//todo:思考下这里怎么索引到对象，保存所有已经创建的窗口及关系
-			//if()
+			//先创建节点
+			std::optional<std::shared_ptr<CListBoxWindowNode>> spNode = g_ListBoxWndMgr.CreateListBoxWindowNode(hSenderList, rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight);
+			if (!spNode.has_value())
+			{
+				break;
+			}
+			//再删除节点
+			g_ListBoxWndMgr.InsertNodeToTree(nLevel.value() + 1, spNode.value());
+
 			break;
 		}
 		else if (HIWORD(wParam) == LBN_DBLCLK)
@@ -342,7 +357,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (LOWORD(wParam))
 		{
 		case IDM_ABOUT:
-			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+			DialogBox(g_hInstance, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
 			break;
 		case IDM_EXIT:
 			DestroyWindow(hWnd);

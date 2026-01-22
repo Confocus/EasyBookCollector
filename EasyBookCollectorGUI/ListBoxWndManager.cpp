@@ -8,6 +8,7 @@
 #include <commctrl.h>       // 补充：ListBox的扩展样式/通知码 都在这里！！
 #pragma comment(lib, "comctl32.lib") // 配套库文件，ListBox自绘/高级功能必须加
 #include "Resource.h"
+extern HINSTANCE g_hInstance;
 
 LRESULT CALLBACK ListBoxWindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -80,7 +81,8 @@ LRESULT CALLBACK ListBoxWindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 CListBoxWndManager::CListBoxWndManager():
 	mIsListBoxWindowRegistered(FALSE),
 	m_hWindow(NULL),
-	m_hListBox(NULL)
+	m_hListBox(NULL),
+	m_spTree(std::make_shared<CListBoxWindowTree>())
 {
 
 }
@@ -90,12 +92,13 @@ CListBoxWndManager::~CListBoxWndManager()
 
 }
 
-VOID CListBoxWndManager::Initialize()
+BOOL CListBoxWndManager::BuildListBoxWindowTree(HWND hWnd, HWND hListbox)
 {
-
+	std::shared_ptr<CListBoxWindowNode> spRoot = std::make_shared<CListBoxWindowNode>(hWnd, hListbox, TRUE);
+	return m_spTree->BuildListBoxWindowTree(spRoot);
 }
 
-VOID CListBoxWndManager::CreateListBoxWindow(HINSTANCE hInst, int x, int y, int width, int height)
+std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWndManager::CreateListBoxWindowNode(HWND hSender, int x, int y, int width, int height)//HINSTANCE hInst, 
 {
 	m_hWindow = CreateWindowEx(
 		WS_EX_TOOLWINDOW,          // 常用于浮动工具窗口
@@ -105,9 +108,15 @@ VOID CListBoxWndManager::CreateListBoxWindow(HINSTANCE hInst, int x, int y, int 
 		x, y, width, height,//rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight
 		nullptr,                   
 		nullptr,
-		hInst,
+		g_hInstance,
 		nullptr
 	);
+	if (NULL == m_hWindow)
+	{
+		DWORD err = GetLastError();
+		//todo:载入日志模块后输出错误
+		return std::nullopt;
+	}
 
 	m_hListBox = CreateWindowEx(
 		0,
@@ -115,12 +124,16 @@ VOID CListBoxWndManager::CreateListBoxWindow(HINSTANCE hInst, int x, int y, int 
 		TEXT(""),
 		WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS,
 		0, 0, 50, 200, // 铺满整个窗口2
-		m_hWindow, (HMENU)ID_SUB_LISTBOX_START, hInst, NULL
+		m_hWindow, (HMENU)ID_SUB_LISTBOX_START, g_hInstance, NULL
 	);
-	if (m_hListBox == NULL) return;
+	if (NULL == m_hListBox)
+	{
+		DWORD err = GetLastError();
+		//todo:载入日志模块后输出错误
+		return std::nullopt;
+	}
 
-	// 3. 设置ListBox2的行高（自绘必加，唯一的规则）
-	SendMessage(m_hListBox, LB_SETITEMHEIGHT, 0, 28);
+	SendMessage(m_hListBox, LB_SETITEMHEIGHT, 0, 28);//设置ListBox2的行高（自绘必加，唯一的规则）
 	SendMessage(m_hListBox, LB_RESETCONTENT, 0, 0); // 清空数据
 
 	static std::vector<std::wstring> vItem = { TEXT("text1"), TEXT("text2"), TEXT("text3"), TEXT("text4") };//
@@ -130,8 +143,10 @@ VOID CListBoxWndManager::CreateListBoxWindow(HINSTANCE hInst, int x, int y, int 
 	ShowWindow(m_hWindow, SW_SHOW);
 	UpdateWindow(m_hWindow);
 
-	CListBoxWindowUnit unit(m_hWindow, m_hListBox, TRUE);
-	m_vecListBoxWnd.push_back(unit);
+	std::shared_ptr<CListBoxWindowNode> spNewNode = std::make_shared<CListBoxWindowNode>(m_hWindow, m_hListBox, TRUE);
+	spNewNode->SetIsShowed(TRUE);
+
+	return spNewNode;
 }
 
 BOOL CListBoxWndManager::RegisterListBoxWindowClass(HINSTANCE hInstance)
@@ -168,4 +183,26 @@ BOOL CListBoxWndManager::RegisterListBoxWindowClass(HINSTANCE hInstance)
 		DWORD dwErr = GetLastError();
 		return FALSE;
 	}
+}
+
+BOOL CListBoxWndManager::InsertNodeToTree(unsigned int nIndex, std::shared_ptr<CListBoxWindowNode> spNode)
+{
+	if (NULL == spNode)
+	{
+		return FALSE;
+	}
+	return m_spTree->InsertListBoxWindowNode(nIndex, spNode);
+}
+
+std::optional<unsigned int> CListBoxWndManager::GetLevelBySenderHandle(HWND hSender) 
+{
+	
+	return m_spTree->GetListBoxLevelBySenderHandle(hSender); // 没找到
+}
+
+BOOL CListBoxWndManager::IsSubListBoxShowed(HWND hSender)
+{
+	//todo:创建hSender和Node的对应关系表，便于查找
+	//或者把hSender的值存到Node中，然后遍历树去查找
+	return TRUE;
 }
