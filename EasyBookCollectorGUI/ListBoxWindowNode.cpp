@@ -42,15 +42,15 @@ BOOL CListBoxWindowNode::GetIsShowed()
 	return m_IsShowed;
 }
 
-VOID CListBoxWindowNode::SetIsSubWndShowed(BOOL bShowed)
-{
-	m_IsSubWndShowed = bShowed;
-}
-
-BOOL CListBoxWindowNode::GetIsSubWndShowed()
-{
-	return m_IsSubWndShowed;
-}
+//VOID CListBoxWindowNode::SetIsSubWndShowed(BOOL bShowed)
+//{
+//	m_IsSubWndShowed = bShowed;
+//}
+//
+//BOOL CListBoxWindowNode::GetIsSubWndShowed()
+//{
+//	return m_IsSubWndShowed;
+//}
 
 VOID CListBoxWindowNode::SetParentNode(std::shared_ptr<CListBoxWindowNode> spParentNode)
 {
@@ -64,15 +64,20 @@ std::shared_ptr<CListBoxWindowNode> CListBoxWindowNode::GetParentNode()
 
 VOID CListBoxWindowNode::AddSonNode(unsigned int nMapIndex,std::shared_ptr<CListBoxWindowNode> spSonNode)
 {
-
+	m_mapSonNodes[nMapIndex] = spSonNode;
 }
 
-std::vector<std::shared_ptr<CListBoxWindowNode>>& CListBoxWindowNode::GetSonNode(unsigned int nMapIndex)
+std::shared_ptr<CListBoxWindowNode>& CListBoxWindowNode::GetSonNode(unsigned int nMapIndex)
 {
-	return m_vecSonNodes;
+	return m_mapSonNodes[nMapIndex];
 }
 
 VOID CListBoxWindowNode::SetParentListboxIndex(unsigned int nMapIndex)
 {
 	m_nListboxIndex = nMapIndex;
+}
+
+HWND CListBoxWindowNode::GetCurrentHWND()
+{
+	return m_hWindow;
 }

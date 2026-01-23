@@ -17,15 +17,16 @@ public:
 	HWND GetListBoxHwnd();
 	VOID SetIsShowed(BOOL bShowed);
 	BOOL GetIsShowed();
-	VOID SetIsSubWndShowed(BOOL bShowed);
-	BOOL GetIsSubWndShowed();
+	/*VOID SetIsSubWndShowed(BOOL bShowed);
+	BOOL GetIsSubWndShowed();*/
 
 	VOID SetParentNode(std::shared_ptr<CListBoxWindowNode> spParentNode);
 	std::shared_ptr<CListBoxWindowNode> GetParentNode();
 	VOID AddSonNode(unsigned int nMapIndex, std::shared_ptr<CListBoxWindowNode> spSonNode);
-	std::vector<std::shared_ptr<CListBoxWindowNode>>& GetSonNode(unsigned int nMapIndex);
+	std::shared_ptr<CListBoxWindowNode>& GetSonNode(unsigned int nMapIndex);
 	VOID SetParentListboxIndex(unsigned int nMapIndex);
 	
+	HWND GetCurrentHWND();
 private:
 	//建立关系时需要的数据
 	HWND m_hWindow;
@@ -34,7 +35,7 @@ private:
 	std::shared_ptr<CListBoxWindowNode> m_spParentNode;
 	unsigned int m_nListboxIndex;
 	//todo:一个节点有多个Son还是用map？
-	std::vector<std::shared_ptr<CListBoxWindowNode>> m_vecSonNodes;
+	std::map<unsigned int, std::shared_ptr<CListBoxWindowNode>> m_mapSonNodes;
 	//todo:建立一个ListItem对应的是否show的关系？
 
 	BOOL m_IsShowed;

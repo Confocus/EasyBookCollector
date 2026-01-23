@@ -338,23 +338,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				hSenderList, LB_GETITEMDATA, selectedIndex, 0
 			);
 
+			//我甚至怀疑Node是否应该暴露出来
 			std::optional<std::shared_ptr<CListBoxWindowNode>> optSpParentNode = g_ListBoxWndMgr.GetNodePointerByHandle(hSenderList);
-			if((*optSpParentNode)->GetSonNode())
-			if ((*optSpParentNode)->GetIsSubWndShowed())
+			std::shared_ptr<CListBoxWindowNode> spSonNode = (*optSpParentNode)->GetSonNode(itemId);
+
+			//已经创建过了，且处于显示状态，则直接隐藏
+			if (nullptr != spSonNode && spSonNode->GetIsShowed())
 			{
-				//todo:执行隐藏逻辑
-				//BOOL HideWindow(HWND hWnd) {
-				//	// 第一步：校验窗口句柄有效性（必做！）
-				//	if (hWnd == NULL || !IsWindow(hWnd)) {
-				//		// 句柄无效，返回失败
-				//		SetLastError(ERROR_INVALID_WINDOW_HANDLE);
-				//		return FALSE;
-				//	}
+				ShowWindow(spSonNode->GetCurrentHWND(), SW_HIDE);
+				spSonNode->SetIsShowed(FALSE);
+				break;
+			}
 
-				//	// 第二步：调用ShowWindow隐藏窗口（SW_HIDE是核心）
-				//	return ShowWindow(hWnd, SW_HIDE);
-				//}
-
+			//已经创建过了，且处于未显示状态，则直接显示
+			if (nullptr != spSonNode && !spSonNode->GetIsShowed())
+			{
+				ShowWindow(spSonNode->GetCurrentHWND(), SW_SHOW);
+				spSonNode->SetIsShowed(TRUE);
+				break;
 			}
 			//拿到父节点所在的层级
 			std::optional<int> nLevel = g_ListBoxWndMgr.GetLevelBySenderHandle(hSenderList);
@@ -366,9 +367,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			RECT rcListBox;
 			GetWindowRect(hSenderList, &rcListBox);
 			
-
 			//先创建节点
-			//todo:这里如何避免多次重复创建
 			std::optional<std::shared_ptr<CListBoxWindowNode>> spNewNode = g_ListBoxWndMgr.CreateListBoxWindowNode(hSenderList, rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight);
 			if (!spNewNode.has_value())
 			{
@@ -376,13 +375,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			(*spNewNode)->SetIsShowed(TRUE);
 
-			//再插入节点
-			//todo:用itemId拿到的ID放到父节点的vector、map中去
-			//todo:我们是否应该建立一个set
-			//todo:插入节点时建立好子节点与父节点的链接关系
+			//插入节点到树结构中
+			//todo:甚至我觉得不必简历树结构，而是简历一个set结构，然后set中的每个Node之间建立好关系链接即可
 			g_ListBoxWndMgr.InsertNodeToTree(nLevel.value() + 1, spNewNode.value());
-			//
-			g_ListBoxWndMgr.BindParentAndSonNode(*optSpParentNode, *spNewNode);
+
+			//建立父子节点之间的联系
+			g_ListBoxWndMgr.BindParentAndSonNode(itemId, *optSpParentNode, *spNewNode);
 			break;
 		}
 		else if (HIWORD(wParam) == LBN_DBLCLK)

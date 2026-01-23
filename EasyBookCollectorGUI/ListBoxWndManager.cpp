@@ -196,8 +196,11 @@ BOOL CListBoxWndManager::InsertNodeToTree(unsigned int nIndex, std::shared_ptr<C
 
 BOOL CListBoxWndManager::BindParentAndSonNode(unsigned int nMapIndex, std::shared_ptr<CListBoxWindowNode> spParentNode, std::shared_ptr<CListBoxWindowNode> spSonNode)
 {
+	//告知父节点自己的某个ListboxItem有了一个子节点
 	spParentNode->AddSonNode(nMapIndex, spSonNode);
+	//给子节点配置父节点
 	spSonNode->SetParentNode(spParentNode);
+	//设置子节点对应的ListboxItem的ID
 	spSonNode->SetParentListboxIndex(nMapIndex);
 	return TRUE;
 }
