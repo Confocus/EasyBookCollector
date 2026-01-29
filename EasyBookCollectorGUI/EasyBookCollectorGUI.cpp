@@ -199,7 +199,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		static std::vector<std::wstring> vItem = { L"临时存放", L"优先", L"核心能力", L"核心能力但不那么好", L"非核心能力" , L"其它" };//
 		std::for_each(vItem.begin(), vItem.end(), [&](const std::wstring& item) {
 			unsigned int itemIndex = static_cast<unsigned int>(SendMessage(hMainListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str()));
-			SendMessage(hMainListBox, LB_SETITEMDATA, itemIndex, (LPARAM)1000 + idx++);
+			SendMessage(hMainListBox, LB_SETITEMDATA, itemIndex, (LPARAM)LISTBOX_INDEX_START + idx++);
 			});//todo:先在Tree中记录节点的个数，在绑定节点是第几个，如果是第一个就是1000+
 
 		int screenWidth = GetSystemMetrics(SM_CXSCREEN);   // 屏幕宽度
@@ -216,7 +216,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		//创建完成时，初始化，构建根节点，记录各个ListBox和Window的关系
 		//只在根节点创建的时候Build即可
-		g_ListBoxWndMgr.BuildListBoxWindowTree(hWnd, hMainListBox);
+		std::optional<std::shared_ptr<CListBoxWindowNode>> spRoot = g_ListBoxWndMgr.BuildListBoxWindowTree(hWnd, hMainListBox);
+		if (!spRoot.has_value() || !*spRoot) //一个是判断有没有值一个是判断值是否为NULL
+		{
+			//todo:增加错误日志模块
+			//std::cerr << "错误：构建 CListBoxWindowTree 失败，程序将退出！" << std::endl;
+			PostQuitMessage(0); // 参数是退出码，会被传递给 GetMessage 的返回值，通常传 0 即可
+			return 0;
+		}
+
 		break;
 	}
 	case WM_DRAWITEM:

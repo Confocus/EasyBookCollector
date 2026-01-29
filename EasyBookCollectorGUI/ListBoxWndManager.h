@@ -25,7 +25,7 @@ public:
 	* @param HWND hListbox 发送创建窗口的Listbox
 	* @return 创建是否成功
 	*************************************************************************/
-	BOOL BuildListBoxWindowTree(HWND hWnd, HWND hListbox);
+	std::optional<std::shared_ptr<CListBoxWindowNode>> BuildListBoxWindowTree(HWND hWnd, HWND hListbox);
 
 	/**************************************************************************
 	* @brief  创建一个节点
@@ -67,6 +67,7 @@ public:
 	* @return 返回所在层级
 	*************************************************************************/
 	BOOL IsSubListBoxShowed(HWND hSender);
+
 private:
 	CListBoxWndManager(const CListBoxWndManager& other);
 	CListBoxWndManager& operator=(const CListBoxWndManager& other);

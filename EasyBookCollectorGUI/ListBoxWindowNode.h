@@ -27,6 +27,7 @@ public:
 	VOID SetParentListboxIndex(unsigned int nMapIndex);
 	
 	HWND GetCurrentHWND();
+	VOID SetTotalNumIndex(unsigned int nIndex);
 private:
 	//建立关系时需要的数据
 	HWND m_hWindow;
@@ -43,7 +44,8 @@ private:
 	std::optional<unsigned int> m_FromCursel;
 	//每一个ListBoxWindow所对应的上一层级的Listbox中的Item，或节点中的信息
 	std::unique_ptr<CListBoxItem> m_upItem;
-	
+	//树中有几个节点，已节点数量作为索引
+	unsigned int m_nTotalNumIndex;
 };
 
 //目录或书籍的每一项所对应的一个ListBoxWindow

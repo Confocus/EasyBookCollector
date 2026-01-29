@@ -13,3 +13,9 @@
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+
+//每个Node的起始Index都是几千，然后最多有999个ListItem：
+//后续都是用 i * LISTBOX_INDEX_STEP 表示这个ListBox中的item的起始Index的
+#define LISTBOX_INDEX_START 1000
+#define LISTBOX_INDEX_STEP	1000
+#define ROOT_NODE_INDEX		1

@@ -82,3 +82,8 @@ HWND CListBoxWindowNode::GetCurrentHWND()
 {
 	return m_hWindow;
 }
+
+VOID CListBoxWindowNode::SetTotalNumIndex(unsigned int nIndex)
+{
+	m_nTotalNumIndex = nIndex;
+}

@@ -28,7 +28,9 @@ public:
 	BOOL BuildListBoxWindowTree(std::shared_ptr<CListBoxWindowNode> spNode);
 	std::optional<int> GetListBoxLevelBySenderHandle(HWND hWnd);
 	std::optional<std::shared_ptr<CListBoxWindowNode>> GetNodePointerByHandle(HWND hWnd);
-	BOOL InsertListBoxWindowNode(int nIndex, std::shared_ptr<CListBoxWindowNode> spNode);
+	BOOL InsertListBoxWindowNode(unsigned int nIndex, std::shared_ptr<CListBoxWindowNode> spNode);
+	VOID AddTotalNodeNum();
+	unsigned int GetTotalNodeNum();
 private:
 	CListBoxWindowTree& operator=(const CListBoxWindowTree& other) = delete;
 	CListBoxWindowTree(const CListBoxWindowTree& other) = delete;
@@ -37,5 +39,6 @@ private:
 	std::shared_ptr<CListBoxWindowNode> m_spRoot;
 	//动态构建一个vector的vector，只不过每个vector中还存放着所在层级
 	std::vector<std::vector<std::shared_ptr<CListBoxWindowNode>>> m_vecTree;
-	unsigned int g_nTotalNodes;
+	//树中保存着有几个Node
+	unsigned int m_nTotalNodesNum;
 };

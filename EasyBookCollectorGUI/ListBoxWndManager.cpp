@@ -8,6 +8,8 @@
 #include <commctrl.h>       // 补充：ListBox的扩展样式/通知码 都在这里！！
 #pragma comment(lib, "comctl32.lib") // 配套库文件，ListBox自绘/高级功能必须加
 #include "Resource.h"
+#include "framework.h"
+
 extern HINSTANCE g_hInstance;
 extern CListBoxWndManager g_ListBoxWndMgr;
 
@@ -119,7 +121,7 @@ BOOL CListBoxWndManager::ShowOrHideNode(HWND hWnd, UINT message, WPARAM wParam, 
 			bRet = TRUE;//todo:可以设置不同的状态，表达不同的返回原因
 			break;
 		}
-
+		//todo:确保只有没创建过才会走到这里
 		//已经创建过了，且处于未显示状态，则直接显示
 		if (nullptr != spSonNode && !spSonNode->GetIsShowed())
 		{
@@ -160,11 +162,16 @@ BOOL CListBoxWndManager::ShowOrHideNode(HWND hWnd, UINT message, WPARAM wParam, 
 	return bRet;
 }
 
-BOOL CListBoxWndManager::BuildListBoxWindowTree(HWND hWnd, HWND hListbox)
+std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWndManager::BuildListBoxWindowTree(HWND hWnd, HWND hListbox)
 {
 	std::shared_ptr<CListBoxWindowNode> spRoot = std::make_shared<CListBoxWindowNode>(hWnd, hListbox, TRUE);
-	return m_spTree->InsertListBoxWindowNode(0, spRoot);
-	//return m_spTree->BuildListBoxWindowTree(spRoot);
+	if (m_spTree->InsertListBoxWindowNode(0, spRoot))
+	{
+		m_spTree->AddTotalNodeNum();
+		spRoot->SetTotalNumIndex(ROOT_NODE_INDEX);
+		return spRoot;
+	}
+	return std::nullopt;
 }
 
 std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWndManager::CreateListBoxWindowNodeAndShow(HWND hSender, int x, int y, int width, int height)//HINSTANCE hInst, 
@@ -205,10 +212,13 @@ std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWndManager::CreateLis
 	SendMessage(m_hListBox, LB_SETITEMHEIGHT, 0, 28);//设置ListBox2的行高（自绘必加，唯一的规则）
 	SendMessage(m_hListBox, LB_RESETCONTENT, 0, 0); // 清空数据
 
+	int idx = 0;
 	static std::vector<std::wstring> vItem = { TEXT("text1"), TEXT("text2"), TEXT("text3"), TEXT("text4") };//
-	std::for_each(vItem.begin(), vItem.end(), [=](const std::wstring& item) {
-		SendMessage(m_hListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
+	std::for_each(vItem.begin(), vItem.end(), [&](const std::wstring& item) {
+		unsigned int itemIndex = SendMessage(m_hListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
+		SendMessage(m_hListBox, LB_SETITEMDATA, itemIndex, (LPARAM)(m_spTree->GetTotalNodeNum() + 1) * LISTBOX_INDEX_STEP + idx++);
 		});
+
 	ShowWindow(m_hWindow, SW_SHOW);
 	UpdateWindow(m_hWindow);
 
@@ -251,13 +261,21 @@ BOOL CListBoxWndManager::RegisterListBoxWindowClass(HINSTANCE hInstance)
 	}
 }
 
-BOOL CListBoxWndManager::InsertNodeToTree(unsigned int nIndex, std::shared_ptr<CListBoxWindowNode> spNode)
+BOOL CListBoxWndManager::InsertNodeToTree(unsigned int nLevelIndex, std::shared_ptr<CListBoxWindowNode> spNode)
 {
 	if (NULL == spNode)
 	{
 		return FALSE;
 	}
-	return m_spTree->InsertListBoxWindowNode(nIndex, spNode);
+
+	if (m_spTree->InsertListBoxWindowNode(nLevelIndex, spNode))
+	{
+		m_spTree->AddTotalNodeNum();
+		spNode->SetTotalNumIndex(m_spTree->GetTotalNodeNum());
+		return TRUE;
+	}
+
+	return FALSE;
 }
 
 BOOL CListBoxWndManager::BindParentAndSonNode(unsigned int nMapIndex, std::shared_ptr<CListBoxWindowNode> spParentNode, std::shared_ptr<CListBoxWindowNode> spSonNode)
