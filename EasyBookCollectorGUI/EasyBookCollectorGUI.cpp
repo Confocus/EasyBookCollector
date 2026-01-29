@@ -113,6 +113,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
 	g_hInstance = hInstance; // 将实例句柄存储在全局变量中
 
+	//得通过 WM_LBUTTONDOWN 发送 WM_SYSCOMMAND 消息，模拟标题栏拖动
 	HWND hWnd = CreateWindowW(szWindowClass, szTitle,
 		WS_POPUP,//WS_OVERLAPPEDWINDOW
 		0, 0,
@@ -158,6 +159,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 	switch (message)
 	{
+	case WM_LBUTTONDOWN:
+	{
+		// 发送 WM_SYSCOMMAND 消息，模拟标题栏拖动
+		// SC_MOVE：移动窗口命令；HTCAPTION：强制按标题栏区域处理
+		SendMessageW(hWnd, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
+		return 0;
+	}
 	case WM_ERASEBKGND:
 	{
 		HDC hdc = (HDC)wParam;
@@ -313,18 +321,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				break;
 			}
+			std::optional<BOOL> bRet = g_MainWndActions.IsMainWindowTouchScreenEdge(hWnd);
+			//todo:如果没挨着右边则不必考虑，但是这样这里总得计算
+			//todo:所以这里应该优化掉，只有当窗口贴到有彼岸时，这里才接到通知进行计时；窗口剥离右边的时候，不执行这里直接跳出
+			if (bRet.has_value() && FALSE == bRet.value())
+			{
+				break;
+			}
 			//之前有一个Bug：有一种情况鼠标移动出窗口不会隐藏，那就是：鼠标沿着主窗口的右边框往上或往下移动
 			//刚刚在之前被判定为曾在窗口右边缘待过，只有曾在右边缘待过才会考虑这种情况，所以大多数情况不会进入这个if
 			//情况一：待完后没触发WM_MOUSELEAVE消息中的判定从左上下移出（可能还在主窗口上），那这里自然不必执行
 			//情况二：待完后沿着右边往上或往下移动出了窗口
 			//我不希望这里进入太频繁，所以尽量if筛选跳出
-			if (g_MainWndActions.GetObCursorOnRightEdge())
+			//if (g_MainWndActions.GetObCursorOnRightEdge())
 			{
 				POINT ptMouse;
 				GetCursorPos(&ptMouse);
-				std::optional<int> nTop = g_MainWndActions.GetMainWindowTop(hWnd).value();
-				std::optional<int> nBottom = g_MainWndActions.GetMainWindowBottom(hWnd).value();
-				if ((nTop.has_value() && nTop.value() > ptMouse.y) || (nBottom.has_value() && nBottom.value() < ptMouse.y))
+				/*std::optional<int> nTop = g_MainWndActions.GetMainWindowTop(hWnd).value();
+				std::optional<int> nBottom = g_MainWndActions.GetMainWindowBottom(hWnd).value();*/
+				RECT rcWindow;
+				if (!GetWindowRect(hWnd, &rcWindow))
+				{
+					break;
+				}
+
+				/*if ((nTop.has_value() && nTop.value() > ptMouse.y) 
+					|| (nBottom.has_value() && nBottom.value() < ptMouse.y))*/
+				if(rcWindow.top > ptMouse.y || rcWindow.bottom < ptMouse.y || rcWindow.left > ptMouse.x	)
 				{
 					//触发移动
 					g_MainWndActions.SetObCursorOnRightEdge(FALSE);
@@ -343,6 +366,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		if (HIWORD(wParam) == LBN_SELCHANGE)//点击主窗口的Listbox选项会走到这里
 		{
+			//todo:这里要判断如果已经有子窗口显示了，在显示第二个子窗口的时候，要先关闭第一个
 			g_ListBoxWndMgr.ShowOrHideNode(hWnd, message, wParam, lParam);
 			break;
 		}
@@ -407,35 +431,35 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		//todo:我想把这段代码去掉，否则在Timer中也有类似的逻辑，以后修改得修改Timer和WM_MOUSELEAVE两处
 		do 
 		{
-			g_bIsTrackRegistered = FALSE;
-			std::optional<BOOL> bMainWndTouchRightEdge = g_MainWndActions.IsMainWindowTouchScreenEdge(hWnd);
-			std::optional<BOOL> bCursorAtRightEdge = g_MainWndActions.IsMouseOnMainWindowRightEdge(hWnd);
+			g_bIsTrackRegistered = FALSE;//这里保留以便每次WM_MOUSELEAVE会消耗一个TRACKMOUSEEVENT后能再次初始化一个新的TRACKMOUSEEVENT
+			/*std::optional<BOOL> bMainWndTouchRightEdge = g_MainWndActions.IsMainWindowTouchScreenEdge(hWnd);
+			std::optional<BOOL> bCursorAtRightEdge = g_MainWndActions.IsMouseOnMainWindowRightEdge(hWnd);*/
 			//保证窗口贴着边，且鼠标不在窗口右侧才隐藏 
 			//鼠标此时贴着窗口右边，不执行隐藏
-			if (bCursorAtRightEdge.value())
+			/*if (bCursorAtRightEdge.value())
 			{
 				g_MainWndActions.SetObCursorOnRightEdge(TRUE);
 				break;
-			}
+			}*/
 
 			//如果是悬浮在某个子控件上不隐藏
-			if (!g_MainWndActions.IsMouseReallyLeaveMainWnd(hWnd))
+			/*if (!g_MainWndActions.IsMouseReallyLeaveMainWnd(hWnd))
 			{
 				break;
-			}
+			}*/
 
 			//todo:使用了Timer监控鼠标位置后这里的逻辑好像就不太需要了？
 			//如果触碰了右边边界，且鼠标不在在右边边界附近即是从其它方向挪出来的
 			//有一种情况会出现Bug，就是鼠标先快速从上面移出，在窗口移动的过程中，再迅速让鼠标从左边移出，
 			//这样记录的就是正在移动的过程中的窗口的左上角坐标，此时再赋值给g_nOriginalWindowLeft就不是
 			//窗口默认打开时候的位置了
-			if (bMainWndTouchRightEdge && !bCursorAtRightEdge.value())//考虑鼠标是从左上下方向移出的窗口，直接通知隐藏  
-			{
-				//隐藏窗口
-				g_MainWndActions.NotifyStimulateSlideHideWindowToRightEdge(hWnd);
-				g_MainWndActions.SetObCursorOnRightEdge(FALSE);//从左上下移出后肯定鼠标就不再在主窗口边缘了
-				break;
-			}
+			//if (bMainWndTouchRightEdge && !bCursorAtRightEdge.value())//考虑鼠标是从左上下方向移出的窗口，直接通知隐藏  
+			//{
+			//	//隐藏窗口
+			//	g_MainWndActions.NotifyStimulateSlideHideWindowToRightEdge(hWnd);
+			//	g_MainWndActions.SetObCursorOnRightEdge(FALSE);//从左上下移出后肯定鼠标就不再在主窗口边缘了
+			//	break;
+			//}
 			
 		} while (0);
 		

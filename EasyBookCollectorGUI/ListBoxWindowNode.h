@@ -35,7 +35,6 @@ private:
 	//一个节点只有一个Parent
 	std::shared_ptr<CListBoxWindowNode> m_spParentNode;
 	unsigned int m_nListboxIndex;
-	//todo:一个节点有多个Son还是用map？
 	std::map<unsigned int, std::shared_ptr<CListBoxWindowNode>> m_mapSonNodes;
 	//todo:建立一个ListItem对应的是否show的关系？
 

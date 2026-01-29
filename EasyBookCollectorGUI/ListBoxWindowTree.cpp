@@ -44,7 +44,6 @@ std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWindowTree::GetNodePo
 	{
 		std::shared_ptr<CListBoxWindowNode> matchedNode = nullptr;
 		std::vector<std::shared_ptr<CListBoxWindowNode>> sub = m_vecTree[i];//sub = std::vector<std::shared_ptr<CListBoxWindowNode>>
-		//todo:ÐÞ¸Äfind_if
 		if (std::find_if(sub.begin(), sub.end(), [=, &matchedNode](std::shared_ptr<CListBoxWindowNode> it) {
 			if (it->GetListBoxHwnd() == hWnd)
 			{
