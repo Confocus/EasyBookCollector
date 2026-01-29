@@ -37,4 +37,5 @@ private:
 	std::shared_ptr<CListBoxWindowNode> m_spRoot;
 	//动态构建一个vector的vector，只不过每个vector中还存放着所在层级
 	std::vector<std::vector<std::shared_ptr<CListBoxWindowNode>>> m_vecTree;
+	unsigned int g_nTotalNodes;
 };

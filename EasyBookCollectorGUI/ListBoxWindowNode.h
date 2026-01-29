@@ -40,7 +40,6 @@ private:
 
 	BOOL m_IsShowed;
 	//BOOL m_IsSubWndShowed;
-	unsigned int m_Index;
 	std::optional<unsigned int> m_FromCursel;
 	//每一个ListBoxWindow所对应的上一层级的Listbox中的Item，或节点中的信息
 	std::unique_ptr<CListBoxItem> m_upItem;

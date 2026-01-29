@@ -9,6 +9,11 @@
 #pragma comment(lib, "comctl32.lib") // 配套库文件，ListBox自绘/高级功能必须加
 #include "Resource.h"
 extern HINSTANCE g_hInstance;
+extern CListBoxWndManager g_ListBoxWndMgr;
+
+const int g_nListSpace = 10;
+const int g_nListWidth = 180;
+const int g_nListHeight = 300;
 
 LRESULT CALLBACK ListBoxWindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -57,14 +62,10 @@ LRESULT CALLBACK ListBoxWindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 	// ✅ 处理ListBox2的选中事件 LBN_SELCHANGE，和你之前的逻辑一致
 	case WM_COMMAND:
 	{
-		//if (HIWORD(wParam) == LBN_SELCHANGE && LOWORD(wParam) == ID_LISTBOX2)
-		//{
-		//	int nSel = SendMessage(g_hListBox2, LB_GETCURSEL, 0, 0);
-		//	if (nSel != LB_ERR)
-		//	{
-		//		ShowWindow(hWnd, SW_HIDE); // 选中后隐藏窗口2，体验最佳
-		//	}
-		//}
+		if (HIWORD(wParam) == LBN_SELCHANGE)//点击主窗口的Listbox选项会走到这里
+		{
+			g_ListBoxWndMgr.ShowOrHideNode(hWnd, message, wParam, lParam);
+		}
 		break;
 	}
 	// ✅ 窗口2关闭时，销毁句柄，防止泄漏
@@ -92,6 +93,73 @@ CListBoxWndManager::~CListBoxWndManager()
 
 }
 
+BOOL CListBoxWndManager::ShowOrHideNode(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	BOOL bRet = FALSE;
+	do 
+	{
+		//hSenderList和hWindows是一对一的关系
+		HWND hSenderList = (HWND)lParam;
+		unsigned int selectedIndex = static_cast<unsigned int>(SendMessage(hSenderList, LB_GETCURSEL, 0, 0));
+		if (selectedIndex == LB_ERR)
+		{
+			break;
+		}
+
+		unsigned int itemId = (unsigned int)SendMessage(hSenderList, LB_GETITEMDATA, selectedIndex, 0);
+
+		std::optional<std::shared_ptr<CListBoxWindowNode>> optSpParentNode = GetNodePointerByHandle(hSenderList);
+		std::shared_ptr<CListBoxWindowNode> spSonNode = (*optSpParentNode)->GetSonNode(itemId);
+
+		//已经创建过了，且处于显示状态，则直接隐藏
+		if (nullptr != spSonNode && spSonNode->GetIsShowed())
+		{
+			ShowWindow(spSonNode->GetCurrentHWND(), SW_HIDE);
+			spSonNode->SetIsShowed(FALSE);
+			bRet = TRUE;//todo:可以设置不同的状态，表达不同的返回原因
+			break;
+		}
+
+		//已经创建过了，且处于未显示状态，则直接显示
+		if (nullptr != spSonNode && !spSonNode->GetIsShowed())
+		{
+			ShowWindow(spSonNode->GetCurrentHWND(), SW_SHOW);
+			spSonNode->SetIsShowed(TRUE);
+			bRet = TRUE;
+			break;
+		}
+		//拿到父节点所在的层级
+		std::optional<int> nLevel = GetLevelBySenderHandle(hSenderList);
+		if (!nLevel.has_value())
+		{
+			break;
+		}
+
+		RECT rcListBox;
+		GetWindowRect(hSenderList, &rcListBox);
+
+		//先创建节点
+		//todo:每个子节点创建的位置可能要改一下
+		std::optional<std::shared_ptr<CListBoxWindowNode>> spNewNode = CreateListBoxWindowNodeAndShow(hSenderList, rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight);
+		if (!spNewNode.has_value())
+		{
+			break;
+		}
+		(*spNewNode)->SetIsShowed(TRUE);
+
+		//插入节点到树结构中
+		//todo:甚至我觉得不必建立树结构，而是简历一个set结构，然后set中的每个Node之间建立好关系链接即可
+		InsertNodeToTree(nLevel.value() + 1, spNewNode.value());
+
+		//建立父子节点之间的联系
+		BindParentAndSonNode(itemId, *optSpParentNode, *spNewNode);
+		bRet = TRUE;
+		break;
+	} while (FALSE);
+
+	return bRet;
+}
+
 BOOL CListBoxWndManager::BuildListBoxWindowTree(HWND hWnd, HWND hListbox)
 {
 	std::shared_ptr<CListBoxWindowNode> spRoot = std::make_shared<CListBoxWindowNode>(hWnd, hListbox, TRUE);
@@ -99,10 +167,8 @@ BOOL CListBoxWndManager::BuildListBoxWindowTree(HWND hWnd, HWND hListbox)
 	//return m_spTree->BuildListBoxWindowTree(spRoot);
 }
 
-std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWndManager::CreateListBoxWindowNode(HWND hSender, int x, int y, int width, int height)//HINSTANCE hInst, 
+std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWndManager::CreateListBoxWindowNodeAndShow(HWND hSender, int x, int y, int width, int height)//HINSTANCE hInst, 
 {
-	
-
 	m_hWindow = CreateWindowEx(
 		WS_EX_TOOLWINDOW,          // 常用于浮动工具窗口
 		LISTBOX_WINDOW_CLASS_NAME,

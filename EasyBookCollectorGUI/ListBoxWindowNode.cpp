@@ -5,12 +5,13 @@ CListBoxWindowNode::CListBoxWindowNode():
 	m_hWindow(NULL),
 	m_hListBox(NULL),
 	m_IsShowed(FALSE),
-	m_Index(0)
+	m_nListboxIndex(0)
 {
 
 }
 
-CListBoxWindowNode::CListBoxWindowNode(HWND hWindow, HWND hListBox, BOOL bIsShowed /*= FALSE*/)
+CListBoxWindowNode::CListBoxWindowNode(HWND hWindow, HWND hListBox, BOOL bIsShowed /*= FALSE*/):
+	CListBoxWindowNode()
 {
 	m_hWindow = hWindow;
 	m_hListBox = hListBox;

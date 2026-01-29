@@ -16,6 +16,8 @@ public:
 	CListBoxWndManager();
 	virtual ~CListBoxWndManager();
 
+	BOOL ShowOrHideNode(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+
 	/**************************************************************************
 	* @brief 创建表示ListBoxWindow节点的树结构，其实这里只是创建一个树的根节点，
 	* @brief 所以只需要传入构建根节点的Listbox窗口句柄和Windows窗口句柄即可
@@ -32,7 +34,7 @@ public:
 	* @param  后边四个参数分别是左上角坐标以及宽度和高度
 	* @return 创建节点是否成功
 	*************************************************************************/
-	std::optional<std::shared_ptr<CListBoxWindowNode>> CreateListBoxWindowNode(HWND hSender, int x, int y, int width, int height);//HINSTANCE hInst, 
+	std::optional<std::shared_ptr<CListBoxWindowNode>> CreateListBoxWindowNodeAndShow(HWND hSender, int x, int y, int width, int height);//HINSTANCE hInst, 
 
 	/**************************************************************************
 	* @brief 必须先创建一个Windows窗口然后再在里面创建ListBox。我们就注册这样的一个窗口类。

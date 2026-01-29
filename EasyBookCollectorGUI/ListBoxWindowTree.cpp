@@ -1,7 +1,8 @@
 #include "ListBoxWindowTree.h"
 
 CListBoxWindowTree::CListBoxWindowTree() :
-	m_spRoot(std::make_shared<CListBoxWindowNode>())
+	m_spRoot(std::make_shared<CListBoxWindowNode>()),
+	g_nTotalNodes(0)
 {
 	m_vecTree.resize(5);
 }
@@ -18,7 +19,7 @@ BOOL CListBoxWindowTree::BuildListBoxWindowTree(std::shared_ptr<CListBoxWindowNo
 		return FALSE;
 	}
 	m_spRoot = spNode;
-	m_vecTree.at(0).push_back(spNode);
+	InsertListBoxWindowNode(0, spNode);
 	return TRUE;
 }
 
@@ -63,5 +64,6 @@ BOOL CListBoxWindowTree::InsertListBoxWindowNode(int nIndex, std::shared_ptr<CLi
 {
 	//todo:这里查重一下
 	m_vecTree[nIndex].push_back(spNode);
+	g_nTotalNodes++;
 	return TRUE;
 }

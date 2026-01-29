@@ -16,9 +16,7 @@
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 BOOL g_bIsTrackRegistered = FALSE;
-const int g_nListSpace = 10;
-const int g_nListWidth = 180;
-const int g_nListHeight = 300;
+
 
 CMainWindowActions g_MainWndActions;
 CListBoxWndManager g_ListBoxWndMgr;
@@ -200,9 +198,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		//所以这里加个static即可
 		static std::vector<std::wstring> vItem = { L"临时存放", L"优先", L"核心能力", L"核心能力但不那么好", L"非核心能力" , L"其它" };//
 		std::for_each(vItem.begin(), vItem.end(), [&](const std::wstring& item) {
-			int itemIndex = SendMessage(hMainListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str());
+			unsigned int itemIndex = static_cast<unsigned int>(SendMessage(hMainListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str()));
 			SendMessage(hMainListBox, LB_SETITEMDATA, itemIndex, (LPARAM)1000 + idx++);
-			});
+			});//todo:先在Tree中记录节点的个数，在绑定节点是第几个，如果是第一个就是1000+
 
 		int screenWidth = GetSystemMetrics(SM_CXSCREEN);   // 屏幕宽度
 		int screenHeight = GetSystemMetrics(SM_CYSCREEN);  // 屏幕高度
@@ -217,6 +215,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		SetTimer(hWnd, MOUSE_LEAVE_MONITOR, 20, NULL);
 
 		//创建完成时，初始化，构建根节点，记录各个ListBox和Window的关系
+		//只在根节点创建的时候Build即可
 		g_ListBoxWndMgr.BuildListBoxWindowTree(hWnd, hMainListBox);
 		break;
 	}
@@ -323,64 +322,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		if (HIWORD(wParam) == LBN_SELCHANGE)//点击主窗口的Listbox选项会走到这里
 		{
-			//hSenderList和hWindows是一对一的关系
-			HWND hSenderList = (HWND)lParam;
-			//如果考虑到未来Listbox的项的顺序会改变，那么这个index可能没用
-			/*int index = (int)SendMessage(hMainListBox, LB_GETCURSEL, 0, 0);
-			if (index == LB_ERR)
-			{
-				break;
-			}*/
-			int selectedIndex = SendMessage(hSenderList, LB_GETCURSEL, 0, 0);
-			if (selectedIndex == LB_ERR) return NULL;
-
-			unsigned int itemId = (unsigned int)SendMessage(
-				hSenderList, LB_GETITEMDATA, selectedIndex, 0
-			);
-
-			//我甚至怀疑Node是否应该暴露出来
-			std::optional<std::shared_ptr<CListBoxWindowNode>> optSpParentNode = g_ListBoxWndMgr.GetNodePointerByHandle(hSenderList);
-			std::shared_ptr<CListBoxWindowNode> spSonNode = (*optSpParentNode)->GetSonNode(itemId);
-
-			//已经创建过了，且处于显示状态，则直接隐藏
-			if (nullptr != spSonNode && spSonNode->GetIsShowed())
-			{
-				ShowWindow(spSonNode->GetCurrentHWND(), SW_HIDE);
-				spSonNode->SetIsShowed(FALSE);
-				break;
-			}
-
-			//已经创建过了，且处于未显示状态，则直接显示
-			if (nullptr != spSonNode && !spSonNode->GetIsShowed())
-			{
-				ShowWindow(spSonNode->GetCurrentHWND(), SW_SHOW);
-				spSonNode->SetIsShowed(TRUE);
-				break;
-			}
-			//拿到父节点所在的层级
-			std::optional<int> nLevel = g_ListBoxWndMgr.GetLevelBySenderHandle(hSenderList);
-			if (!nLevel.has_value())
-			{
-				break;
-			}
-
-			RECT rcListBox;
-			GetWindowRect(hSenderList, &rcListBox);
-			
-			//先创建节点
-			std::optional<std::shared_ptr<CListBoxWindowNode>> spNewNode = g_ListBoxWndMgr.CreateListBoxWindowNode(hSenderList, rcListBox.left - 3 * g_nListSpace - g_nListWidth, rcListBox.top, g_nListWidth, g_nListHeight);
-			if (!spNewNode.has_value())
-			{
-				break;
-			}
-			(*spNewNode)->SetIsShowed(TRUE);
-
-			//插入节点到树结构中
-			//todo:甚至我觉得不必简历树结构，而是简历一个set结构，然后set中的每个Node之间建立好关系链接即可
-			g_ListBoxWndMgr.InsertNodeToTree(nLevel.value() + 1, spNewNode.value());
-
-			//建立父子节点之间的联系
-			g_ListBoxWndMgr.BindParentAndSonNode(itemId, *optSpParentNode, *spNewNode);
+			g_ListBoxWndMgr.ShowOrHideNode(hWnd, message, wParam, lParam);
 			break;
 		}
 		else if (HIWORD(wParam) == LBN_DBLCLK)
