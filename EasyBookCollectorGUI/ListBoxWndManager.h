@@ -9,7 +9,6 @@
 #define LISTBOX_WINDOW_CLASS_NAME L"ListboxWindowClass"
 #define ID_SUB_LISTBOX_START 4001  
 
-//todo:这里应该再创建一个Windows Listbox单元，而这个Manager类只负责管理
 class CListBoxWndManager
 {
 public:

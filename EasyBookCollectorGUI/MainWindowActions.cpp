@@ -2,6 +2,7 @@
 const int ANIMATION_TIME = 800;
 const int nFrameInterval = 1;
 
+//这里是主窗口是否滑动隐藏过了，和CListBoxWndNode中的IsShowed的概念有点冲突or类似
 BOOL g_bIsMainWindowHide = FALSE;
 int g_nCurrentFrame = 0;
 int g_nSlideDistance = 0;
@@ -10,7 +11,7 @@ int g_nEdgeWidth = 0;
 
 
 CMainWindowActions::CMainWindowActions() : 
-	m_bIsCursorOnMainWnd(FALSE), m_bCursorOnRightEdge(FALSE)
+	m_bIsCursorOnMainWnd(FALSE), m_bCursorOnRightEdge(FALSE), m_bNotifiedStimulate(FALSE)
 {
 }
 
@@ -49,7 +50,7 @@ std::optional<BOOL> CMainWindowActions::IsMainWindowTouchScreenEdge(HWND hWnd)
 	return abs(nScreenRight - nWindowRight) < EDGE_THRESHOLD ? TRUE : FALSE;
 }
 
-BOOL CMainWindowActions::StartStimulateSlideHideWindowToRightEdge(HWND hWnd)
+BOOL CMainWindowActions::NotifyStimulateSlideHideWindowToRightEdge(HWND hWnd)
 {
 	if (g_bIsMainWindowHide)
 	{
@@ -75,6 +76,7 @@ BOOL CMainWindowActions::StartStimulateSlideHideWindowToRightEdge(HWND hWnd)
 	GetMonitorInfo(hMonitor, &mi);
 	g_nSlideDistance = mi.rcWork.right - m_nOriginalWindowLeft.value();
 	SetTimer(hWnd, ANIMATE_TIMER_ID, nFrameInterval, NULL);
+	m_bNotifiedStimulate = TRUE;//此时通知了需要去模拟隐藏主窗口
 	return TRUE;
 }
 
@@ -98,6 +100,7 @@ VOID CMainWindowActions::ProcessStimulateSlideHideWindowToRightEdge(HWND hWnd)
 		KillTimer(hWnd, ANIMATE_TIMER_ID);
 		g_bIsMainWindowHide = TRUE;//此时已经隐藏好
 		g_nCurrentFrame = 0;//恢复等于0，以留着下次计算使用
+		m_bNotifiedStimulate = FALSE;
 	}
 }
 
@@ -177,4 +180,9 @@ bool CMainWindowActions::IsMouseReallyLeaveMainWnd(HWND hWnd)
 	bool bLeave = !PtInRect(&rcMainWnd, ptCursor);
 
 	return bLeave;
+}
+
+BOOL CMainWindowActions::GetObNotifiedStimulate()
+{
+	return m_bNotifiedStimulate;
 }

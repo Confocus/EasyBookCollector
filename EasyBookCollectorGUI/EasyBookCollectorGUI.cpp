@@ -200,7 +200,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		std::for_each(vItem.begin(), vItem.end(), [&](const std::wstring& item) {
 			unsigned int itemIndex = static_cast<unsigned int>(SendMessage(hMainListBox, LB_ADDSTRING, 0, (LPARAM)item.c_str()));
 			SendMessage(hMainListBox, LB_SETITEMDATA, itemIndex, (LPARAM)LISTBOX_INDEX_START + idx++);
-			});//todo:先在Tree中记录节点的个数，在绑定节点是第几个，如果是第一个就是1000+
+			});
 
 		int screenWidth = GetSystemMetrics(SM_CXSCREEN);   // 屏幕宽度
 		int screenHeight = GetSystemMetrics(SM_CYSCREEN);  // 屏幕高度
@@ -303,21 +303,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		case MOUSE_LEAVE_MONITOR:
 		{
-			
-		//有一种情况鼠标移动出窗口不会隐藏，那就是：鼠标沿着主窗口的右边框往上或往下移动
-		if (g_MainWndActions.GetObCursorOnRightEdge())
-		{
-			POINT ptMouse;
-			GetCursorPos(&ptMouse);
-			std::optional<int> nTop = g_MainWndActions.GetMainWindowTop(hWnd).value();
-			std::optional<int> nBottom = g_MainWndActions.GetMainWindowBottom(hWnd).value();
-			if ((nTop.has_value() && nTop.value() > ptMouse.y ) || (nBottom.has_value() && nBottom.value() < ptMouse.y))
+			//如果主窗口已经隐藏了，就不必进来了，否则浪费时间
+			if (g_bIsMainWindowHide)
 			{
-				//触发移动
-				g_MainWndActions.SetObCursorOnRightEdge(FALSE);
-				g_MainWndActions.StartStimulateSlideHideWindowToRightEdge(hWnd);
+				break;
 			}
-		}
+			//如果已经通知了要去ProcessStimulateSlideHideWindowToRightEdge就不该再进来处理了
+			if (g_MainWndActions.GetObNotifiedStimulate())
+			{
+				break;
+			}
+			//之前有一个Bug：有一种情况鼠标移动出窗口不会隐藏，那就是：鼠标沿着主窗口的右边框往上或往下移动
+			//刚刚在之前被判定为曾在窗口右边缘待过，只有曾在右边缘待过才会考虑这种情况，所以大多数情况不会进入这个if
+			//情况一：待完后没触发WM_MOUSELEAVE消息中的判定从左上下移出（可能还在主窗口上），那这里自然不必执行
+			//情况二：待完后沿着右边往上或往下移动出了窗口
+			//我不希望这里进入太频繁，所以尽量if筛选跳出
+			if (g_MainWndActions.GetObCursorOnRightEdge())
+			{
+				POINT ptMouse;
+				GetCursorPos(&ptMouse);
+				std::optional<int> nTop = g_MainWndActions.GetMainWindowTop(hWnd).value();
+				std::optional<int> nBottom = g_MainWndActions.GetMainWindowBottom(hWnd).value();
+				if ((nTop.has_value() && nTop.value() > ptMouse.y) || (nBottom.has_value() && nBottom.value() < ptMouse.y))
+				{
+					//触发移动
+					g_MainWndActions.SetObCursorOnRightEdge(FALSE);
+					g_MainWndActions.NotifyStimulateSlideHideWindowToRightEdge(hWnd);
+				}
+			}
 			break;
 		}
 		default:
@@ -391,35 +404,36 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_MOUSELEAVE:
 	{
+		//todo:我想把这段代码去掉，否则在Timer中也有类似的逻辑，以后修改得修改Timer和WM_MOUSELEAVE两处
 		do 
 		{
 			g_bIsTrackRegistered = FALSE;
-			std::optional<BOOL> bTouchRightEdge = g_MainWndActions.IsMainWindowTouchScreenEdge(hWnd);
-			std::optional<BOOL> bAtRight = g_MainWndActions.IsMouseOnMainWindowRightEdge(hWnd);
+			std::optional<BOOL> bMainWndTouchRightEdge = g_MainWndActions.IsMainWindowTouchScreenEdge(hWnd);
+			std::optional<BOOL> bCursorAtRightEdge = g_MainWndActions.IsMouseOnMainWindowRightEdge(hWnd);
 			//保证窗口贴着边，且鼠标不在窗口右侧才隐藏 
-			//std::optional 的取反针对「是否有值」，而非「值的内容」
-			//BOOL b = bAtRight.value();
-			if (bAtRight.value())
+			//鼠标此时贴着窗口右边，不执行隐藏
+			if (bCursorAtRightEdge.value())
 			{
 				g_MainWndActions.SetObCursorOnRightEdge(TRUE);
 				break;
 			}
 
-			//如果是悬浮在某个子控件上
+			//如果是悬浮在某个子控件上不隐藏
 			if (!g_MainWndActions.IsMouseReallyLeaveMainWnd(hWnd))
 			{
 				break;
 			}
 
+			//todo:使用了Timer监控鼠标位置后这里的逻辑好像就不太需要了？
 			//如果触碰了右边边界，且鼠标不在在右边边界附近即是从其它方向挪出来的
 			//有一种情况会出现Bug，就是鼠标先快速从上面移出，在窗口移动的过程中，再迅速让鼠标从左边移出，
 			//这样记录的就是正在移动的过程中的窗口的左上角坐标，此时再赋值给g_nOriginalWindowLeft就不是
 			//窗口默认打开时候的位置了
-			if (bTouchRightEdge && !bAtRight.value())//  
+			if (bMainWndTouchRightEdge && !bCursorAtRightEdge.value())//考虑鼠标是从左上下方向移出的窗口，直接通知隐藏  
 			{
 				//隐藏窗口
-				g_MainWndActions.StartStimulateSlideHideWindowToRightEdge(hWnd);
-				g_MainWndActions.SetObCursorOnRightEdge(FALSE);
+				g_MainWndActions.NotifyStimulateSlideHideWindowToRightEdge(hWnd);
+				g_MainWndActions.SetObCursorOnRightEdge(FALSE);//从左上下移出后肯定鼠标就不再在主窗口边缘了
 				break;
 			}
 			
