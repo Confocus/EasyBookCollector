@@ -1,26 +1,28 @@
 {
   "manifest_version": 2,
-  "name": "原生右键菜单新增自定义项",
+  "name": "原生消息传递与 C++ exe 通信",
   "version": "1.0",
-  "description": "方案一：给浏览器原生右键菜单添加自定义功能项，同时监听网页双击事件",
+  "description": "无需服务器，扩展直接与 C++ exe 通信",
   "permissions": [
     "contextMenus",
     "activeTab",
-    "clipboardWrite"
+    "clipboardWrite",
+    "nativeMessaging"  // 新增：Native Messaging 权限
   ],
   "background": {
     "scripts": ["background.js"],
     "persistent": false
   },
-  // 新增：配置内容脚本，注入到网页中监听双击事件
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],  // 注入所有网页（可指定具体网页，如 "*://www.baidu.com/*"）
-      "js": ["content.js"],  // 要注入的内容脚本文件（新建 content.js）
-      "run_at": "document_end"  // 网页 DOM 加载完成后注入（避免无法访问 DOM）
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
     }
   ],
-  "icons": {
-    "48": "icon.png"
-  }
+  "browser_specific_settings": {
+        "gecko": {
+            "id": "tab-context-demo@yourname.com"
+        }
+    }
 }

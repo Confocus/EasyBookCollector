@@ -1,0 +1,9 @@
+{
+  "name": "com.yourcompany.dblclickreceiver",  
+  "description": "扩展与 C++ exe 通信的 Native Messaging 宿主",
+  "path": "D:\\AllProjects\\GlobalBookmark\\NativeMessageDemo\\NativeMessageDemo\\x64\\Debug\\NativeMessageDemo.exe",  
+  "type": "stdio",  
+  "allowed_extensions": [
+    "tab-context-demo@yourname.com"
+  ]
+}

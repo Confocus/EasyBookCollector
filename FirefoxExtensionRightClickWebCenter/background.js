@@ -1,73 +1,36 @@
-// 一、扩展安装/更新时，创建自定义右键菜单项（原有逻辑不变）
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "my-custom-main",
-    title: "\u0001我的专属功能",
-    contexts: ["page", "selection"],
-    documentUrlPatterns: ["<all_urls>"]
-  });
-
-  chrome.contextMenus.create({
-    id: "my-custom-sub1",
-    title: "复制当前网页链接（带备注）",
-    parentId: "my-custom-main",
-    contexts: ["page", "selection"],
-    documentUrlPatterns: ["<all_urls>"]
-  });
-
-  chrome.contextMenus.create({
-    id: "my-custom-sub2",
-    title: "打开百度测试网页",
-    parentId: "my-custom-main",
-    contexts: ["page", "selection"],
-    documentUrlPatterns: ["<all_urls>"]
-  });
-});
-
-// 二、监听自定义菜单项的点击事件（原有逻辑不变）
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  switch (info.menuItemId) {
-    case "my-custom-sub1":
-      if (tab && tab.url) {
-        const copyContent = `网页链接：${tab.url}（复制于 ${new Date().toLocaleString()}）`;
-        try {
-          navigator.clipboard.writeText(copyContent).then(() => {
-            console.log(`复制成功：${copyContent}`);
-          }).catch(() => {
-            chrome.clipboard.writeText(copyContent);
-            console.log(`复制成功（备用方案）：${copyContent}`);
-          });
-        } catch (err) {
-          chrome.clipboard.writeText(copyContent);
-          console.log(`复制成功（备用方案）：${copyContent}`);
-        }
-      }
-      break;
-
-    case "my-custom-sub2":
-      chrome.tabs.create({
-        url: "https://www.baidu.com",
-        active: true
-      });
-      break;
-  }
-});
-
-// 新增：监听内容脚本发送的双击事件消息（和内容脚本通信）
+// 监听内容脚本发送的双击事件消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // request：内容脚本发送的消息数据
-  // sender：发送者信息（包含标签页、扩展ID等）
-  // sendResponse：向内容脚本返回响应的函数
   if (request.type === "pageDblClick") {
     console.log("后台脚本接收到网页双击事件：", request.data);
-    // 后台脚本的自定义逻辑（示例：记录双击日志、操作剪贴板等）
-    const logContent = `双击日志：${new Date().toLocaleString()}，网页：${request.data.pageUrl}，目标元素：${request.data.targetTag}`;
-    console.log(logContent);
+    const dblClickData = request.data;
 
-    // 向内容脚本返回响应
-    sendResponse({
-      status: "success",
-      message: "后台脚本已接收双击事件并处理完成"
-    });
+    // 核心：调用 Native Messaging，直接向 C++ exe 发送数据
+    // 第一个参数：Native Messaging 宿主 ID（必须和 manifest.json、宿主清单文件一致）
+    chrome.runtime.sendNativeMessage(
+      "com.yourcompany.dblclickreceiver",  // 与 manifest.json 中的 ids 一致
+      dblClickData,  // 要发送的数据（JSON 对象，浏览器会自动封装成 Native Messaging 格式）
+      (response) => {
+        // 回调函数：接收 C++ exe 返回的响应
+        if (chrome.runtime.lastError) {
+          // 通信失败（如 exe 未启动、协议错误）
+          console.error("Native Messaging 通信失败：", chrome.runtime.lastError.message);
+          sendResponse({
+            status: "error",
+            message: "与 C++ exe 通信失败：" + chrome.runtime.lastError.message
+          });
+        } else {
+          // 通信成功
+          console.log("C++ exe 返回的响应：", response);
+          sendResponse({
+            status: "success",
+            message: "已成功向 C++ exe 发送数据并接收响应",
+            nativeResponse: response
+          });
+        }
+      }
+    );
+
+    // 异步通信，返回 true 确保 sendResponse 正常回调
+    return true;
   }
 });
