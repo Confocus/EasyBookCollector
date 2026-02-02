@@ -118,6 +118,8 @@ BOOL CListBoxWndManager::ShowOrHideNode(HWND hWnd, UINT message, WPARAM wParam, 
 		{
 			ShowWindow(spSonNode->GetCurrentHWND(), SW_HIDE);
 			spSonNode->SetIsShowed(FALSE);
+			//关闭ListBoxItem弹出的窗口时：取消ListBoxItem的选中状态，恢复颜色
+			SendMessage(hSenderList, LB_SETCURSEL, (WPARAM)-1, 0);
 			bRet = TRUE;//todo:可以设置不同的状态，表达不同的返回原因
 			break;
 		}

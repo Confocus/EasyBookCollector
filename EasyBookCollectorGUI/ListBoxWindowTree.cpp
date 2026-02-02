@@ -1,10 +1,12 @@
 #include "ListBoxWindowTree.h"
 
+const unsigned int g_cMaxTreeLevel = 19;
+
 CListBoxWindowTree::CListBoxWindowTree() :
 	m_spRoot(std::make_shared<CListBoxWindowNode>()),
 	m_nTotalNodesNum(0)
 {
-	m_vecTree.resize(5);
+	m_vecTree.resize(g_cMaxTreeLevel);
 }
 
 CListBoxWindowTree::~CListBoxWindowTree()
@@ -62,6 +64,10 @@ std::optional<std::shared_ptr<CListBoxWindowNode>> CListBoxWindowTree::GetNodePo
 BOOL CListBoxWindowTree::InsertListBoxWindowNode(unsigned int nLevelIndex, std::shared_ptr<CListBoxWindowNode> spNode)
 {
 	//todo:这里查重一下
+	if (nLevelIndex > g_cMaxTreeLevel)
+	{
+		return FALSE;
+	}
 	m_vecTree[nLevelIndex].push_back(spNode);
 	m_nTotalNodesNum++;
 	return TRUE;

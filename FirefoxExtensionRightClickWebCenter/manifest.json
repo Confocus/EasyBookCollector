@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,  // 修改点 1：从 3 改为 2（降级为 Manifest V2）
+  "name": "原生右键菜单新增自定义项",
+  "version": "1.0",
+  "description": "方案一：给浏览器原生右键菜单添加自定义功能项，保留原生所有功能",
+  "permissions": [
+    "contextMenus",
+    "activeTab",
+    "clipboardWrite"
+  ],
+  "background": {
+    // 修改点 2：从 service_worker 改为 scripts（数组格式，可放多个脚本）
+    "scripts": ["background.js"],
+    "persistent": false  // 可选：设置为 false 表示非持久化后台（更轻量，推荐）
+  },
+  "icons": {
+    "48": "icon.png"
+  }
+}
