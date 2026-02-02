@@ -1,44 +1,39 @@
-// 一、扩展安装/更新时，创建自定义右键菜单项（仅执行一次）
+// 一、扩展安装/更新时，创建自定义右键菜单项（原有逻辑不变）
 chrome.runtime.onInstalled.addListener(() => {
-  // 1. 创建一级菜单
   chrome.contextMenus.create({
     id: "my-custom-main",
-    title: "测试我的专属功能",
-    contexts: ["page", "selection"]
+    title: "\u0001我的专属功能",
+    contexts: ["page", "selection"],
+    documentUrlPatterns: ["<all_urls>"]
   });
 
-  // 2. 创建子菜单 1：复制当前网页链接（带备注）
   chrome.contextMenus.create({
     id: "my-custom-sub1",
     title: "复制当前网页链接（带备注）",
     parentId: "my-custom-main",
-    contexts: ["page", "selection"]
+    contexts: ["page", "selection"],
+    documentUrlPatterns: ["<all_urls>"]
   });
 
-  // 3. 创建子菜单 2：打开测试网页
   chrome.contextMenus.create({
     id: "my-custom-sub2",
     title: "打开百度测试网页",
     parentId: "my-custom-main",
-    contexts: ["page", "selection"]
+    contexts: ["page", "selection"],
+    documentUrlPatterns: ["<all_urls>"]
   });
 });
 
-// 二、监听自定义菜单项的点击事件，执行对应功能
+// 二、监听自定义菜单项的点击事件（原有逻辑不变）
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   switch (info.menuItemId) {
     case "my-custom-sub1":
-      // 功能 1：复制当前网页链接 + 备注（修改点：适配 V2，用更稳定的剪贴板逻辑）
       if (tab && tab.url) {
         const copyContent = `网页链接：${tab.url}（复制于 ${new Date().toLocaleString()}）`;
-        
-        // 微调：Manifest V2 中，部分浏览器不支持 navigator.clipboard，补充兼容逻辑
         try {
-          // 优先使用 navigator.clipboard
           navigator.clipboard.writeText(copyContent).then(() => {
             console.log(`复制成功：${copyContent}`);
           }).catch(() => {
-            // 备用方案：如果上面失败，使用扩展专属 API（需要 clipboardWrite 权限）
             chrome.clipboard.writeText(copyContent);
             console.log(`复制成功（备用方案）：${copyContent}`);
           });
@@ -50,11 +45,29 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       break;
 
     case "my-custom-sub2":
-      // 功能 2：新建标签页，打开百度测试网页（逻辑不变）
       chrome.tabs.create({
         url: "https://www.baidu.com",
         active: true
       });
       break;
+  }
+});
+
+// 新增：监听内容脚本发送的双击事件消息（和内容脚本通信）
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // request：内容脚本发送的消息数据
+  // sender：发送者信息（包含标签页、扩展ID等）
+  // sendResponse：向内容脚本返回响应的函数
+  if (request.type === "pageDblClick") {
+    console.log("后台脚本接收到网页双击事件：", request.data);
+    // 后台脚本的自定义逻辑（示例：记录双击日志、操作剪贴板等）
+    const logContent = `双击日志：${new Date().toLocaleString()}，网页：${request.data.pageUrl}，目标元素：${request.data.targetTag}`;
+    console.log(logContent);
+
+    // 向内容脚本返回响应
+    sendResponse({
+      status: "success",
+      message: "后台脚本已接收双击事件并处理完成"
+    });
   }
 });

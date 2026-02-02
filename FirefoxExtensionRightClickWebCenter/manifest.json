@@ -1,18 +1,25 @@
 {
-  "manifest_version": 2,  // 修改点 1：从 3 改为 2（降级为 Manifest V2）
+  "manifest_version": 2,
   "name": "原生右键菜单新增自定义项",
   "version": "1.0",
-  "description": "方案一：给浏览器原生右键菜单添加自定义功能项，保留原生所有功能",
+  "description": "方案一：给浏览器原生右键菜单添加自定义功能项，同时监听网页双击事件",
   "permissions": [
     "contextMenus",
     "activeTab",
     "clipboardWrite"
   ],
   "background": {
-    // 修改点 2：从 service_worker 改为 scripts（数组格式，可放多个脚本）
     "scripts": ["background.js"],
-    "persistent": false  // 可选：设置为 false 表示非持久化后台（更轻量，推荐）
+    "persistent": false
   },
+  // 新增：配置内容脚本，注入到网页中监听双击事件
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],  // 注入所有网页（可指定具体网页，如 "*://www.baidu.com/*"）
+      "js": ["content.js"],  // 要注入的内容脚本文件（新建 content.js）
+      "run_at": "document_end"  // 网页 DOM 加载完成后注入（避免无法访问 DOM）
+    }
+  ],
   "icons": {
     "48": "icon.png"
   }
