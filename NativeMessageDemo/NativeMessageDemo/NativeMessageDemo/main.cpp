@@ -118,32 +118,43 @@ int main() {
 		while (true) {
 			// 1. 读取扩展发送的消息
 			json request = readNativeMessage();
-			std::cout << "【C++ exe】接收到扩展数据：" << request.dump() << std::endl;
-
-			// 2. 处理数据（你的业务逻辑，示例：提取字段，写入日志文件）
-			std::string targetTag = request.value("targetTag", "未知元素");
-			std::string pageUrl = request.value("pageUrl", "未知URL");
-			std::string logContent = "[" + std::string(__TIME__) + "] 元素标签：" + targetTag + "，网页URL：" + pageUrl + "\n";
-
-			// 写入本地日志文件（验证数据是否接收成功）
-			std::ofstream logFile("dblclick_log.txt", std::ios::app);
-			if (logFile.is_open()) {
-				logFile << logContent;
-				logFile.close();
+			try {
+				std::string dumpStr = request.dump(); // 单独提取dump结果，便于排查
+				//这里之前用了js和exe客户端建立了通信连接，是不是当时是基于标准输入输出的通信连接？那么我是不是就不能再调用
+				//std::cout << "【C++ exe】接收到扩展数据：" << dumpStr << std::endl;
 			}
+			catch (const std::exception& e) {
+				// 捕获标准异常，打印具体错误信息
+				std::cerr << "【崩溃原因】dump()抛出异常：" << e.what() << std::endl;
+			}
+			catch (...) {
+				// 捕获所有非标准异常
+				std::cerr << "【崩溃原因】dump()抛出未知异常！" << std::endl;
+			}
+			// 2. 处理数据（你的业务逻辑，示例：提取字段，写入日志文件）
+			/*std::string targetTag = request.value("targetTag", "未知元素");
+			std::string pageUrl = request.value("pageUrl", "未知URL");
+			std::string logContent = "[" + std::string(__TIME__) + "]元素标签：" + targetTag + "，网页URL：" + pageUrl + "\n";*/
 
-			// 3. 构造响应数据（要返回给扩展的内容）
-			json response;
+			//// 写入本地日志文件（验证数据是否接收成功）
+			//std::ofstream logFile("dblclick_log.txt", std::ios::app);
+			//if (logFile.is_open()) {
+			//	logFile << logContent;
+			//	logFile.close();
+			//}
+
+			 //3. 构造响应数据（要返回给扩展的内容）
+			/*json response;
 			response["status"] = "success";
 			response["message"] = "C++ exe 已成功处理数据";
 			response["processedData"] = {
 				{"targetTag", targetTag},
 				{"pageUrl", pageUrl},
 				{"logPath", "dblclick_log.txt"}
-			};
+			};*/
 
-			 //4. 向扩展发送响应（按 Native Messaging 协议封装）
-			sendNativeMessage(response);
+			// //4. 向扩展发送响应（按 Native Messaging 协议封装）
+			//sendNativeMessage(response);
 		}
 	}
 	catch (const std::exception& e) {
