@@ -110,7 +110,7 @@ void sendNativeMessage(const json& response) {
 	// 5. 刷新 stdout，确保数据立即发送（关键，避免缓存）
 	std::cout.flush();
 }
-
+//todo:加上Mutex防止每次双击都调起一个exe
 // 主函数：处理扩展消息，返回响应
 int main() {
 	try {
