@@ -73,8 +73,10 @@
 #include <vector>
 #include <string>
 #include <cstdint>
-#include <D:/AllProjects/public/json-develop/single_include/nlohmann/json.hpp>  // 依赖：nlohmann/json 库（处理 JSON 解析/生成）
-#include "../../../public/PipeMgr.h"
+#include "../../public/json-develop/single_include/nlohmann/json.hpp"  // 依赖：nlohmann/json 库（处理 JSON 解析/生成）
+#include "../../public/PipeMgr.h"
+#include "../../public/PipeMgr.cpp"
+
 // 引入 JSON 库（nlohmann/json，可从 https://github.com/nlohmann/json 下载，直接包含头文件即可）
 using json = nlohmann::json;
 
@@ -170,8 +172,10 @@ int main2() {
 	return 0;
 }
 
+CPipeMgr::CPipeClient g_PipeClient;
 
 int main()
 {
-
+	g_PipeClient.CreatePipeClient();
+	getchar();
 }

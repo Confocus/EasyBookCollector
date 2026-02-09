@@ -13,7 +13,7 @@
 #include "EasyBookCollectorGUI.h"
 #include "MainWindowActions.h"
 #include "ListBoxWndManager.h"
-#include "../../public/PipeMgr.h"
+#include "../public/PipeMgr.h"
 
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
