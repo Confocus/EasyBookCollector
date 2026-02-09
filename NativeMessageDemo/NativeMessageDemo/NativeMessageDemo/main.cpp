@@ -74,7 +74,7 @@
 #include <string>
 #include <cstdint>
 #include <D:/AllProjects/public/json-develop/single_include/nlohmann/json.hpp>  // 依赖：nlohmann/json 库（处理 JSON 解析/生成）
-
+#include "../../../../public/PipeMgr.h"
 // 引入 JSON 库（nlohmann/json，可从 https://github.com/nlohmann/json 下载，直接包含头文件即可）
 using json = nlohmann::json;
 
@@ -111,8 +111,9 @@ void sendNativeMessage(const json& response) {
 	std::cout.flush();
 }
 //todo:加上Mutex防止每次双击都调起一个exe
+// todo:每次退出时断开std::out时会崩溃
 // 主函数：处理扩展消息，返回响应
-int main() {
+int main2() {
 	try {
 		// 循环读取扩展消息（Native Messaging 宿主程序通常持续运行，处理多条消息）
 		while (true) {
@@ -170,3 +171,7 @@ int main() {
 }
 
 
+int main()
+{
+
+}

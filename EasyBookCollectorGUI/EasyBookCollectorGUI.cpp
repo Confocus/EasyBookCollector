@@ -9,17 +9,19 @@
 #include <algorithm>
 #include <memory>
 #include <tchar.h>
+#include <thread>
 #include "EasyBookCollectorGUI.h"
 #include "MainWindowActions.h"
 #include "ListBoxWndManager.h"
+#include "../../public/PipeMgr.h"
 
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 BOOL g_bIsTrackRegistered = FALSE;
 
-
 CMainWindowActions g_MainWndActions;
 CListBoxWndManager g_ListBoxWndMgr;
+CPipeMgr::CPipeServer g_PipeMgr;
 HWND hChildList = NULL;
 
 #define MOUSE_LEAVE_MONITOR 2001
@@ -28,6 +30,7 @@ HWND hChildList = NULL;
 HINSTANCE g_hInstance;                                // 当前实例
 WCHAR szTitle[MAX_LOADSTRING];                  // 标题栏文本
 WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
+
 
 // 此代码模块中包含的函数的前向声明:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -59,7 +62,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_EASYBOOKCOLLECTORGUI));
 
 	MSG msg;
-
+	std::thread tNativeMessage(&CPipeMgr::CPipeServer::CreatePipeServerWithCompRout, &g_PipeMgr);
 	// 主消息循环:
 	while (GetMessage(&msg, nullptr, 0, 0))
 	{
@@ -69,7 +72,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			DispatchMessage(&msg);
 		}
 	}
-
+	tNativeMessage.join();
 	return (int)msg.wParam;
 }
 

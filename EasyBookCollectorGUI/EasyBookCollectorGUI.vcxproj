@@ -128,6 +128,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\public\PipeMgr.h" />
     <ClInclude Include="ListBoxWindowTree.h" />
     <ClInclude Include="ListBoxWndManager.h" />
     <ClInclude Include="MainWindowActions.h" />
@@ -138,6 +139,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\public\PipeMgr.cpp" />
     <ClCompile Include="ListBoxWindowTree.cpp" />
     <ClCompile Include="ListBoxWndManager.cpp" />
     <ClCompile Include="MainWindowActions.cpp" />
