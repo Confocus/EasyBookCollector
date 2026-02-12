@@ -81,26 +81,26 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 //  函数: MyRegisterClass()
 //
 ////  目标: 注册窗口类。
-////
-ATOM MyRegisterClass(HINSTANCE hInstance)
-{
-	WNDCLASSEXW wcex = { 0 };
-
-	wcex.cbSize = sizeof(WNDCLASSEX);
-	wcex.style = CS_HREDRAW | CS_VREDRAW;
-	wcex.lpfnWndProc = WndProc;
-	wcex.cbClsExtra = 0;
-	wcex.cbWndExtra = 0;
-	wcex.hInstance = hInstance;
-	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_EASYBOOKCOLLECTORGUI));
-	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	wcex.lpszMenuName = NULL;  MAKEINTRESOURCEW(IDC_EASYBOOKCOLLECTORGUI);
-	wcex.lpszClassName = szWindowClass;
-	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
-
-	return RegisterClassExW(&wcex);
-}
+//////
+//ATOM MyRegisterClass(HINSTANCE hInstance)
+//{
+//	WNDCLASSEXW wcex = { 0 };
+//
+//	wcex.cbSize = sizeof(WNDCLASSEX);
+//	wcex.style = CS_HREDRAW | CS_VREDRAW;
+//	wcex.lpfnWndProc = WndProc;
+//	wcex.cbClsExtra = 0;
+//	wcex.cbWndExtra = 0;
+//	wcex.hInstance = hInstance;
+//	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_EASYBOOKCOLLECTORGUI));
+//	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+//	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+//	wcex.lpszMenuName = NULL;  MAKEINTRESOURCEW(IDC_EASYBOOKCOLLECTORGUI);
+//	wcex.lpszClassName = szWindowClass;
+//	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+//
+//	return RegisterClassExW(&wcex);
+//}
 //////
 ATOM MyRegisterClass(HINSTANCE hInstance) {
 	WNDCLASSEXW wcex = { 0 };
@@ -507,31 +507,69 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 #pragma comment(lib, "comctl32.lib") // 链接ListView控件库
 
 // 全局变量：记录拆分条位置、面板句柄
-int g_nSplitterX = 400; // 拆分条初始X坐标
-HWND g_hLeftListView, g_hRightListView; // 左右文件列表
+HWND g_hLeftTree, g_hLeftList;   // 左拆分面板的树+列表
+HWND g_hRightTree, g_hRightList; // 右拆分面板的树+列表
+int g_nPanelSplitterX = 200;     // 面板内树控件的宽度（可拖动）
 HWND g_hSplitter; // 拆分条
 
-// 初始化 ListView 列（名称、大小、修改时间）
-void InitListViewColumns(HWND hListView) {
+// 初始化自定义树控件（加载图书分类层级）
+void InitCustomTree(HWND hTree) {
+	// 清空原有节点
+	TreeView_DeleteAllItems(hTree);
+
+	// ========== 根节点1：编程（模拟“文件夹”） ==========
+	TVINSERTSTRUCTW tvInsert;
+	tvInsert.hParent = TVI_ROOT;
+	tvInsert.hInsertAfter = TVI_LAST;
+	tvInsert.item.mask = TVIF_TEXT | TVIF_PARAM;
+	tvInsert.item.pszText = const_cast<LPWSTR>(L"编程");
+	tvInsert.item.lParam = 1; // 自定义参数：分类ID=1
+	HTREEITEM hRoot1 = TreeView_InsertItem(hTree, &tvInsert);
+
+	// 子节点1-1：入门（模拟“子文件夹”）
+	tvInsert.hParent = hRoot1;
+	tvInsert.item.pszText = const_cast<LPWSTR>(L"入门");
+	tvInsert.item.lParam = 11; // 分类ID=11
+	HTREEITEM hChild11 = TreeView_InsertItem(hTree, &tvInsert);
+
+	// 子节点1-1-1：Python（模拟“子文件夹/条目”）
+	tvInsert.hParent = hChild11;
+	tvInsert.item.pszText = const_cast<LPWSTR>(L"Python");
+	tvInsert.item.lParam = 111; // 分类ID=111
+	TreeView_InsertItem(hTree, &tvInsert);
+
+	// ========== 根节点2：小说（模拟“文件夹”） ==========
+	tvInsert.hParent = TVI_ROOT;
+	tvInsert.item.pszText = const_cast<LPWSTR>(L"小说");
+	tvInsert.item.lParam = 2; // 分类ID=2
+	HTREEITEM hRoot2 = TreeView_InsertItem(hTree, &tvInsert);
+
+	// 子节点2-1：科幻（模拟“子文件夹”）
+	tvInsert.hParent = hRoot2;
+	tvInsert.item.pszText = const_cast<LPWSTR>(L"科幻");
+	tvInsert.item.lParam = 21; // 分类ID=21
+	TreeView_InsertItem(hTree, &tvInsert);
+
+	// 默认展开根节点
+	TreeView_Expand(hTree, hRoot1, TVE_EXPAND);
+	TreeView_Expand(hTree, hRoot2, TVE_EXPAND);
+}
+
+// 初始化列表控件列（自定义字段：名称、作者、重要性）
+void InitCustomListColumns(HWND hList) {
 	LVCOLUMNW lvc = { 0 };
 	lvc.mask = LVCF_TEXT | LVCF_WIDTH;
 
-	// 列1：名称
-	//std::wstring tmp = ;
-	lvc.pszText = const_cast<LPWSTR>(L"名称");
-	lvc.cx = 250;
-	ListView_InsertColumn(hListView, 0, &lvc);
+	lvc.pszText = const_cast<LPWSTR>(L"名称"); lvc.cx = 200;
+	ListView_InsertColumn(hList, 0, &lvc);
 
-	// 列2：大小
-	lvc.pszText = const_cast<LPWSTR>(L"大小");
-	lvc.cx = 100;
-	ListView_InsertColumn(hListView, 1, &lvc);
+	lvc.pszText = const_cast<LPWSTR>(L"作者"); lvc.cx = 150;
+	ListView_InsertColumn(hList, 1, &lvc);
 
-	// 列3：修改时间
-	lvc.pszText = const_cast<LPWSTR>(L"修改时间");
-	lvc.cx = 180;
-	ListView_InsertColumn(hListView, 2, &lvc);
+	lvc.pszText = const_cast<LPWSTR>(L"重要性"); lvc.cx = 80;
+	ListView_InsertColumn(hList, 2, &lvc);
 }
+
 
 // 加载指定目录到 ListView
 void LoadDirectory(HWND hListView, LPCWSTR szDir) {
@@ -587,39 +625,59 @@ void LoadDirectory(HWND hListView, LPCWSTR szDir) {
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	int nWidth = LOWORD(lParam);
 	int nHeight = HIWORD(lParam);
+	int nMainSplitterX = 400; // 主拆分条位置
 	switch (msg) {
 		
 	case WM_CREATE:
-		// 1. 创建拆分条（一个窄的静态控件，可拖动）
-		g_hSplitter = CreateWindowW(L"STATIC", L"",
-			WS_CHILD | WS_VISIBLE | SS_ETCHEDVERT,
-			g_nSplitterX, 0, 5, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
+		g_hSplitter = CreateWindowW(L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_ETCHEDVERT,
+			400, 0, 5, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
 
-		// 2. 创建左面板 ListView（文件列表）
-		g_hLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
-			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
-			0, 0, g_nSplitterX - 5, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
+		// ========== 左拆分面板：树+列表 ==========
+		// 左面板-树控件（自定义层级）
+		g_hLeftTree = CreateWindowW(WC_TREEVIEWW, L"",
+			WS_CHILD | WS_VISIBLE | TVS_HASLINES | TVS_HASBUTTONS | TVS_LINESATROOT | WS_BORDER,
+			0, 0, g_nPanelSplitterX, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
 
-		// 3. 创建右面板 ListView
-		g_hRightListView = CreateWindowW(WC_LISTVIEWW, L"",
-			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
-			g_nSplitterX + 5, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
+		// 左面板-列表控件（自定义内容）
+		g_hLeftList = CreateWindowW(WC_LISTVIEWW, L"",
+			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
+			g_nPanelSplitterX + 5, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
 
-		// 初始化 ListView 列（名称、大小、修改时间）
-		InitListViewColumns(g_hLeftListView);
-		InitListViewColumns(g_hRightListView);
+		// ========== 右拆分面板：树+列表 ==========
+		g_hRightTree = CreateWindowW(WC_TREEVIEWW, L"",
+			WS_CHILD | WS_VISIBLE | TVS_HASLINES | TVS_HASBUTTONS | TVS_LINESATROOT | WS_BORDER,
+			405, 0, g_nPanelSplitterX, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
 
-		// 加载默认目录（比如桌面）
-		LoadDirectory(g_hLeftListView, L"D:\\book\\");
-		LoadDirectory(g_hRightListView, L"D:\\book\\");
+		g_hRightList = CreateWindowW(WC_LISTVIEWW, L"",
+			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
+			405 + g_nPanelSplitterX + 5, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
+
+		// 2. 初始化树控件（加载自定义层级数据）
+		InitCustomTree(g_hLeftTree);  // 左面板树：加载图书分类
+		InitCustomTree(g_hRightTree); // 右面板树：加载另一种分类
+
+		// 3. 初始化列表控件列（自定义字段）
+		InitCustomListColumns(g_hLeftList);
+		InitCustomListColumns(g_hRightList);
 		break;
 
 	case WM_SIZE:
 		// 窗口大小变化时，调整面板/拆分条位置
 		
-		MoveWindow(g_hSplitter, g_nSplitterX, 0, 5, nHeight, TRUE);
-		MoveWindow(g_hLeftListView, 0, 0, g_nSplitterX - 5, nHeight, TRUE);
-		MoveWindow(g_hRightListView, g_nSplitterX + 5, 0, nWidth - g_nSplitterX - 5, nHeight, TRUE);
+		
+
+		// 主拆分条位置
+		MoveWindow(g_hSplitter, nMainSplitterX, 0, 5, nHeight, TRUE);
+
+		// 左面板-树控件
+		MoveWindow(g_hLeftTree, 0, 0, g_nPanelSplitterX, nHeight, TRUE);
+		// 左面板-列表控件
+		MoveWindow(g_hLeftList, g_nPanelSplitterX + 5, 0, nMainSplitterX - g_nPanelSplitterX - 10, nHeight, TRUE);
+
+		// 右面板-树控件
+		MoveWindow(g_hRightTree, nMainSplitterX + 5, 0, g_nPanelSplitterX, nHeight, TRUE);
+		// 右面板-列表控件
+		MoveWindow(g_hRightList, nMainSplitterX + 5 + g_nPanelSplitterX + 5, 0, nWidth - (nMainSplitterX + 5 + g_nPanelSplitterX + 5), nHeight, TRUE);
 		break;
 
 		// 处理拆分条拖动（核心：鼠标按下/移动/松开）
