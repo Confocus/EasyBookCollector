@@ -489,27 +489,30 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 //	return (INT_PTR)FALSE;
 //}
 
-
+//todo:完善并理解代码
+//todo:验证切换成四屏的功能
 #include <windows.h>
 #include <commctrl.h>
 #include <shlwapi.h>
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shlwapi.lib")
 
+#define MAX_NAME_LEN 256
+
 // ===================== 自定义数据结构（模拟虚拟文件夹/数据项） =====================
 // 虚拟节点：表示文件夹/数据项
 typedef struct {
-	int id;             // 唯一ID
-	bool is_folder;     // 是否是文件夹
-	WCHAR name[256];    // 显示名称
-	int parent_id;      // 父节点ID（-1表示根节点）
+	unsigned int nID;             // 唯一ID
+	BOOL bIsFolder;     // 是否是文件夹
+	WCHAR szName[MAX_NAME_LEN];    // 显示名称
+	unsigned int nParentId;      // 父节点ID（-1表示根节点）
 	// 自定义数据：比如数据库ID、内容描述等
 	int db_id;          // 模拟数据库ID
-	WCHAR desc[512];    // 模拟自定义描述
-} MyVirtualNode;
+	WCHAR szDesc[512];    // 模拟自定义描述
+} ItemNode;
 
 // 模拟自定义数据（替代本地文件/数据库）
-MyVirtualNode g_nodes[] = {
+ItemNode g_szTestNode[] = {
 	// 根节点（parent_id=-1）
 	{1, true, L"我的图书分类", -1, 0, L""},
 	{2, true, L"我的收藏夹", -1, 0, L""},
@@ -521,76 +524,98 @@ MyVirtualNode g_nodes[] = {
 	// 编程类的子节点（parent_id=4）
 	{7, false, L"Java核心技术.md", 4, 1003, L"Java进阶内容，自定义数据"},
 	{8, false, L"C++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
-};
-int g_node_count = sizeof(g_nodes) / sizeof(MyVirtualNode);
+	{9, false, L"D++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+	{10, false, L"E++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+	{11, false, L"F++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 
-// ===================== 全局变量 =====================
-HWND g_hLeftList, g_hRightList;   // 左右面板ListView
+};
+unsigned int g_nNodeCount = sizeof(g_szTestNode) / sizeof(ItemNode);
+
+HWND g_hLeftListView, g_hRightListView;   // 左右面板ListView
 HWND g_hSplitter;                 // 拆分条
 int g_nSplitterX = 400;           // 拆分条位置
 // 当前层级：记录每个面板的当前父节点ID（模拟“当前目录”）
 int g_left_current_parent = -1;
 int g_right_current_parent = -1;
 // 图标列表（文件夹/文件图标）
-HIMAGELIST g_hImageList;
+HIMAGELIST g_hImageList = NULL;
 
 // ===================== 工具函数 =====================
 // 初始化图标列表（文件夹+文件图标）
-void InitImageList() {
-	g_hImageList = ImageList_Create(16, 16, ILC_COLOR32 | ILC_MASK, 2, 0);
+BOOL InitImageList() {
+	g_hImageList = ImageList_Create(
+		16, 16, //创建一个 16×16 像素
+		ILC_COLOR32 | ILC_MASK,//32 位真彩色带透明通道
+		2, //初始可存 2 个图标
+		0);//无自动扩容 的图像列表，用于存放你后续添加的文件夹 / 文件通用图标。
+	if (g_hImageList == NULL) {
+		//wprintf(L"ImageList_Create 失败！错误码：%d\n", GetLastError());
+		return FALSE;
+	}
+
 	SHFILEINFOW sfi = { 0 };
 
 	// 添加文件夹图标
-	SHGetFileInfoW(L"", FILE_ATTRIBUTE_DIRECTORY, &sfi, sizeof(sfi),
+	SHGetFileInfoW(
+		L"D:\\Tools",//todo:这里改下获取图标的方式； 
+		FILE_ATTRIBUTE_DIRECTORY, &sfi, sizeof(sfi),
 		SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
-	ImageList_AddIcon(g_hImageList, sfi.hIcon);
+	//把 SHGetFileInfoW 返回的文件夹小图标句柄（sfi.hIcon）添加到图像列表中；
+	//作用：后续你可以通过图像列表的索引（比如 0）来使用这个文件夹图标（比如给 ListView / TreeView 控件设置图标）。
+	int nFolderIconIndex = ImageList_AddIcon(g_hImageList, sfi.hIcon);
 	DestroyIcon(sfi.hIcon);
 
 	// 添加文件图标
 	SHGetFileInfoW(L"*.txt", FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi),
 		SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
-	ImageList_AddIcon(g_hImageList, sfi.hIcon);
+	nFolderIconIndex = ImageList_AddIcon(g_hImageList, sfi.hIcon);
 	DestroyIcon(sfi.hIcon);
+
+	return TRUE;
 }
 
 // 加载指定父节点下的所有虚拟节点到ListView
-void LoadVirtualFolder(HWND hList, int parent_id) {
+void LoadVirtualFolder(HWND hList, int parent_id)
+{
 	// 清空列表
 	ListView_DeleteAllItems(hList);
 
 	// 遍历自定义数据，加载对应节点
-	for (int i = 0; i < g_node_count; i++) {
-		MyVirtualNode* node = &g_nodes[i];
-		if (node->parent_id != parent_id) continue;
+	for (int i = 0; i < g_nNodeCount; i++)
+	{
+		ItemNode* node = &g_szTestNode[i];
+		if (node->nParentId != parent_id) continue;
 
 		// 插入ListView项
 		LVITEMW lvi = { 0 };
 		lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM;
 		lvi.iItem = ListView_GetItemCount(hList);
-		lvi.pszText = node->name;
+		lvi.pszText = node->szName;
 		// 图标：0=文件夹，1=文件
-		lvi.iImage = node->is_folder ? 0 : 1;
+		lvi.iImage = node->bIsFolder ? 0 : 1;
 		// 绑定自定义节点ID（关键：双击时识别是哪个节点）
-		lvi.lParam = node->id;
-
+		lvi.lParam = node->nID;
 		ListView_InsertItem(hList, &lvi);
 	}
 }
 
 // 根据节点ID查找虚拟节点
-MyVirtualNode* FindVirtualNode(int node_id) {
-	for (int i = 0; i < g_node_count; i++) {
-		if (g_nodes[i].id == node_id) {
-			return &g_nodes[i];
+ItemNode* FindVirtualFoldNode(int node_id) {
+	for (int i = 0; i < g_nNodeCount; i++) {
+		if (g_szTestNode[i].nID == node_id) {
+			return &g_szTestNode[i];
 		}
 	}
 	return NULL;
 }
 
-// ===================== 窗口过程函数 =====================
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-	switch (msg) {
-	case WM_CREATE: {
+	switch (msg)
+	{
+	case WM_CREATE: 
+	{
 		// 初始化图标列表
 		InitImageList();
 
@@ -599,27 +624,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			WS_CHILD | WS_VISIBLE | SS_ETCHEDVERT,
 			g_nSplitterX, 0, 5, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
 
+		RECT rcParent;
+		GetClientRect(hWnd, &rcParent);
+		int nListViewHeight = rcParent.bottom - rcParent.top; // 父窗口完整高度
+
 		// 创建左面板ListView
-		g_hLeftList = CreateWindowW(WC_LISTVIEWW, L"",
-			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
-			0, 0, g_nSplitterX - 5, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
-		ListView_SetImageList(g_hLeftList, g_hImageList, TVSIL_NORMAL);
-		// 初始化左面板列（仅显示名称，模拟文件夹列表）
+		g_hLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
+			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS  | WS_BORDER,
+			0, 0, g_nSplitterX - 10, nListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
+
+		ListView_SetImageList(g_hLeftListView, g_hImageList, LVSIL_SMALL);
+
+		//如果在CreateWindowW时使用了属性LVS_SMALLICON，后面的列就显示不出来了
 		LVCOLUMNW lvc = { 0 };
 		lvc.mask = LVCF_TEXT | LVCF_WIDTH;
 		lvc.pszText = const_cast<LPWSTR>(L"名称");
-		lvc.cx = 300;
-		ListView_InsertColumn(g_hLeftList, 0, &lvc);
-		// 加载根节点（parent_id=-1）
-		LoadVirtualFolder(g_hLeftList, g_left_current_parent);
-
+		lvc.cx = 100;
+		ListView_InsertColumn(g_hLeftListView, 0, &lvc);
+		lvc.pszText = const_cast<LPWSTR>(L"修改时间");
+		lvc.cx = 50;
+		ListView_InsertColumn(g_hLeftListView, 1, &lvc);
+		
+		// 初始化左面板列（仅显示名称，模拟文件夹列表）
+		LoadVirtualFolder(g_hLeftListView, g_left_current_parent);
+		
 		// 创建右面板ListView
-		g_hRightList = CreateWindowW(WC_LISTVIEWW, L"",
-			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
-			g_nSplitterX + 5, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
-		ListView_SetImageList(g_hRightList, g_hImageList, TVSIL_NORMAL);
-		ListView_InsertColumn(g_hRightList, 0, &lvc);
-		LoadVirtualFolder(g_hRightList, g_right_current_parent);
+		g_hRightListView = CreateWindowW(WC_LISTVIEWW, L"",
+			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
+			g_nSplitterX + 5, 0, 50, nListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
+		ListView_SetImageList(g_hRightListView, g_hImageList, LVSIL_SMALL);
+		
+		lvc.mask = LVCF_TEXT | LVCF_WIDTH;
+		lvc.pszText = const_cast<LPWSTR>(L"名称");
+		lvc.cx = 100;
+		ListView_InsertColumn(g_hRightListView, 0, &lvc);
+		lvc.pszText = const_cast<LPWSTR>(L"修改时间");
+		lvc.cx = 50;
+		ListView_InsertColumn(g_hRightListView, 1, &lvc);
+		LoadVirtualFolder(g_hRightListView, g_right_current_parent);
 
 		break;
 	}
@@ -629,8 +671,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		int nWidth = LOWORD(lParam);
 		int nHeight = HIWORD(lParam);
 		MoveWindow(g_hSplitter, g_nSplitterX, 0, 5, nHeight, TRUE);
-		MoveWindow(g_hLeftList, 0, 0, g_nSplitterX - 5, nHeight, TRUE);
-		MoveWindow(g_hRightList, g_nSplitterX + 5, 0, nWidth - g_nSplitterX - 5, nHeight, TRUE);
+		MoveWindow(g_hLeftListView, 0, 0, g_nSplitterX - 5, nHeight, TRUE);
+		MoveWindow(g_hRightListView, g_nSplitterX + 5, 0, nWidth - g_nSplitterX - 5, nHeight, TRUE);
 		break;
 	}
 
@@ -663,36 +705,36 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_NOTIFY: {
 		NMHDR* pNMHDR = (NMHDR*)lParam;
 		// 左面板双击
-		if (pNMHDR->hwndFrom == g_hLeftList && pNMHDR->code == NM_DBLCLK) {
+		if (pNMHDR->hwndFrom == g_hLeftListView && pNMHDR->code == NM_DBLCLK) {
 			LPNMITEMACTIVATE pNMItem = (LPNMITEMACTIVATE)lParam;
-			int node_id = (int)pNMItem->iItem != -1 ? ListView_GetItem(g_hLeftList, pNMItem->iItem) : -1;
-			MyVirtualNode* node = FindVirtualNode(node_id);
-			if (node && node->is_folder) {
+			int node_id = (int)pNMItem->iItem != -1 ? ListView_GetItem(g_hLeftListView, pNMItem->iItem) : -1;
+			ItemNode* node = FindVirtualFoldNode(node_id);
+			if (node && node->bIsFolder) {
 				// 进入文件夹：更新当前父节点，重新加载
-				g_left_current_parent = node->id;
-				LoadVirtualFolder(g_hLeftList, g_left_current_parent);
+				g_left_current_parent = node->nID;
+				LoadVirtualFolder(g_hLeftListView, g_left_current_parent);
 			}
-			else if (node && !node->is_folder) {
+			else if (node && !node->bIsFolder) {
 				// 点击数据项：显示自定义数据
 				WCHAR msg[512];
 				wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
-					node->name, node->db_id, node->desc);
+					node->szName, node->db_id, node->szDesc);
 				MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
 			}
 		}
 		// 右面板双击
-		if (pNMHDR->hwndFrom == g_hRightList && pNMHDR->code == NM_DBLCLK) {
+		if (pNMHDR->hwndFrom == g_hRightListView && pNMHDR->code == NM_DBLCLK) {
 			LPNMITEMACTIVATE pNMItem = (LPNMITEMACTIVATE)lParam;
-			int node_id = (int)pNMItem->iItem != -1 ? ListView_GetItem(g_hRightList, pNMItem->iItem) : -1;
-			MyVirtualNode* node = FindVirtualNode(node_id);
-			if (node && node->is_folder) {
-				g_right_current_parent = node->id;
-				LoadVirtualFolder(g_hRightList, g_right_current_parent);
+			int node_id = (int)pNMItem->iItem != -1 ? ListView_GetItem(g_hRightListView, pNMItem->iItem) : -1;
+			ItemNode* node = FindVirtualFoldNode(node_id);
+			if (node && node->bIsFolder) {
+				g_right_current_parent = node->nID;
+				LoadVirtualFolder(g_hRightListView, g_right_current_parent);
 			}
-			else if (node && !node->is_folder) {
+			else if (node && !node->bIsFolder) {
 				WCHAR msg[512];
 				wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
-					node->name, node->db_id, node->desc);
+					node->szName, node->db_id, node->szDesc);
 				MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
 			}
 		}
@@ -704,16 +746,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		if (wParam == VK_BACK) {
 			// 判断当前激活的面板
 			HWND hFocus = GetFocus();
-			if (hFocus == g_hLeftList) {
+			if (hFocus == g_hLeftListView) {
 				// 返回上一级：找到当前父节点的父节点
-				MyVirtualNode* curr_parent = FindVirtualNode(g_left_current_parent);
-				g_left_current_parent = curr_parent ? curr_parent->parent_id : -1;
-				LoadVirtualFolder(g_hLeftList, g_left_current_parent);
+				ItemNode* curr_parent = FindVirtualFoldNode(g_left_current_parent);
+				g_left_current_parent = curr_parent ? curr_parent->nParentId : -1;
+				LoadVirtualFolder(g_hLeftListView, g_left_current_parent);
 			}
-			else if (hFocus == g_hRightList) {
-				MyVirtualNode* curr_parent = FindVirtualNode(g_right_current_parent);
-				g_right_current_parent = curr_parent ? curr_parent->parent_id : -1;
-				LoadVirtualFolder(g_hRightList, g_right_current_parent);
+			else if (hFocus == g_hRightListView) {
+				ItemNode* curr_parent = FindVirtualFoldNode(g_right_current_parent);
+				g_right_current_parent = curr_parent ? curr_parent->nParentId : -1;
+				LoadVirtualFolder(g_hRightListView, g_right_current_parent);
 			}
 		}
 		break;
