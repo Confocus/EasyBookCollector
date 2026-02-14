@@ -19,6 +19,7 @@
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 BOOL g_bIsTrackRegistered = FALSE;
+BOOL g_bDragging = FALSE;
 
 CMainWindowActions g_MainWndActions;
 CListBoxWndManager g_ListBoxWndMgr;
@@ -88,11 +89,13 @@ HWND g_hSplitter;                 // 拆分条
 const unsigned int g_nSplitterX = 400;           // 拆分条位置
 const unsigned int g_nDefaultSubWindowWidth = 400;
 const unsigned int g_nDefaultSplitterWidth = 10;
+int g_nSplitterPos = 0;
 // 当前层级：记录每个面板的当前父节点ID（模拟“当前目录”）
 int g_left_current_parent = -1;
 int g_right_current_parent = -1;
 // 图标列表（文件夹/文件图标）
 HIMAGELIST g_hImageList = NULL;
+BOOL g_bInit = TRUE;
 
 // ===================== 工具函数 =====================
 // 初始化图标列表（文件夹+文件图标）
@@ -175,6 +178,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		int nListViewHeight = rcParent.bottom - rcParent.top; // 父窗口完整高度
 
 		// 创建拆分条
+		//注意，这里的CreateWindows时输入的坐标会被WM_SIZE是MoveWindow的坐标覆盖掉
+		//这里不用计算了
 		g_hSplitter = CreateWindowW(L"STATIC", L"",
 			WS_CHILD | WS_VISIBLE | SS_ETCHEDVERT,
 			g_nSplitterX, 0, g_nDefaultSplitterWidth, nListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
@@ -219,37 +224,90 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 	case WM_SIZE: 
 	{
-		// 调整控件位置，这里的代码导致了我CreateWindowW中设置参数直接失效
-		/*int nWidth = LOWORD(lParam);
-		int nHeight = HIWORD(lParam);
-		MoveWindow(g_hSplitter, g_nSplitterX, 0, 5, nHeight, TRUE);
-		MoveWindow(g_hLeftListView, 0, 0, g_nSplitterX - 5, nHeight, TRUE);
-		MoveWindow(g_hRightListView, g_nSplitterX + 5, 0, nWidth - g_nSplitterX - 5, nHeight, TRUE);*/
+		if (g_bInit)//第一次初始化的时候
+		{
+			RECT rcClient;
+			GetClientRect(hWnd, &rcClient);
+
+			int nSplitterWidth = g_nDefaultSplitterWidth;
+			int nWidth = (rcClient.right - rcClient.left - g_nDefaultSplitterWidth) / 2;
+			MoveWindow(g_hLeftListView, 0, 0, nWidth, rcClient.bottom, TRUE);
+			MoveWindow(g_hSplitter, nWidth, 0, nSplitterWidth, rcClient.bottom, TRUE);
+			MoveWindow(g_hRightListView, nWidth + nSplitterWidth, 0, nWidth, rcClient.bottom, TRUE);
+			g_bInit = FALSE;
+		}
+		
+
+		if (g_bDragging)
+		{
+			// 获取父窗口客户区尺寸
+			RECT rcClient;
+			GetClientRect(hWnd, &rcClient);
+			int nClientWidth = rcClient.right;
+			int nClientHeight = rcClient.bottom;
+
+			// 调整左面板尺寸
+			SetWindowPos(g_hLeftListView, NULL,
+				0, 0, g_nSplitterPos, nClientHeight,
+				SWP_NOZORDER | SWP_NOACTIVATE);
+
+			// 调整分隔条尺寸
+			SetWindowPos(g_hSplitter, NULL,
+				g_nSplitterPos, 0, g_nDefaultSplitterWidth, nClientHeight,
+				SWP_NOZORDER | SWP_NOACTIVATE);
+
+			// 调整右面板尺寸
+			SetWindowPos(g_hRightListView, NULL,
+				g_nSplitterPos + g_nDefaultSplitterWidth, 0,
+				nClientWidth - g_nSplitterPos - g_nDefaultSplitterWidth, nClientHeight,
+				SWP_NOZORDER | SWP_NOACTIVATE);
+		}
 		break;
 	}
 
 				// 处理拆分条拖动
 	case WM_LBUTTONDOWN: {
-		/*RECT rc;
+		RECT rc;
 		GetWindowRect(g_hSplitter, &rc);
-		ScreenToClient(hWnd, (POINT*)&rc.left);
-		ScreenToClient(hWnd, (POINT*)&rc.right);
-		if (PtInRect(&rc, (POINT) { LOWORD(lParam), HIWORD(lParam) })) {
+		RECT rcSplitter;
+		GetWindowRect(g_hSplitter, &rcSplitter);
+		POINT pt = { LOWORD(lParam), HIWORD(lParam) };
+		ClientToScreen(hWnd, &pt); // 转换为屏幕坐标
+
+		if (PtInRect(&rcSplitter, pt)) 
+		{
+			g_bDragging = TRUE;
+			// 设置鼠标捕获，确保拖动时能接收鼠标消息
 			SetCapture(hWnd);
-		}*/
+			// 改变鼠标光标为左右箭头
+			SetCursor(LoadCursor(NULL, IDC_SIZEWE));
+		}
 		break;
 	}
-	case WM_MOUSEMOVE: {
-		/*if (GetCapture() == hWnd) {
-			g_nSplitterX = LOWORD(lParam);
-			if (g_nSplitterX < 100) g_nSplitterX = 100;
-			if (g_nSplitterX > GetClientRectWidth(hWnd) - 100) g_nSplitterX = GetClientRectWidth(hWnd) - 100;
-			SendMessage(hWnd, WM_SIZE, 0, MAKELPARAM(GetClientRectWidth(hWnd), GetClientRectHeight(hWnd)));
-		}*/
+	case WM_MOUSEMOVE: 
+	{
+		if (g_bDragging) {
+			// 获取鼠标当前位置（客户区坐标）
+			POINT pt = { LOWORD(lParam), HIWORD(lParam) };
+			// 限制分隔条的拖动范围（避免拖出边界）
+			//int nMinPos = 50;  // 左面板最小宽度
+			//int nMaxPos = rcClient.right - 100; // 右面板最小宽度
+			//g_nSplitterPos = max(nMinPos, min(pt.x, nMaxPos));
+			g_nSplitterPos = pt.x;
+			// 立即刷新布局（触发WM_SIZE）
+			SendMessage(hWnd, WM_SIZE, 0, 0);
+			// 保持鼠标光标样式
+			SetCursor(LoadCursor(NULL, IDC_SIZEWE));
+		}
 		break;
 	}
-	case WM_LBUTTONUP: {
-		ReleaseCapture();
+	case WM_LBUTTONUP: 
+	{
+		if (g_bDragging)
+		{
+			ReleaseCapture();
+			g_bDragging = FALSE;
+		}
 		break;
 	}
 
