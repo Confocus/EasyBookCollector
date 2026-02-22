@@ -131,6 +131,7 @@
     <ClInclude Include="..\public\PipeMgr.h" />
     <ClInclude Include="ListBoxWindowTree.h" />
     <ClInclude Include="ListBoxWndManager.h" />
+    <ClInclude Include="ListViewMgr.h" />
     <ClInclude Include="MainWindowActions.h" />
     <ClInclude Include="EasyBookCollectorGUI.h" />
     <ClInclude Include="framework.h" />
@@ -142,6 +143,7 @@
     <ClCompile Include="..\public\PipeMgr.cpp" />
     <ClCompile Include="ListBoxWindowTree.cpp" />
     <ClCompile Include="ListBoxWndManager.cpp" />
+    <ClCompile Include="ListViewMgr.cpp" />
     <ClCompile Include="MainWindowActions.cpp" />
     <ClCompile Include="EasyBookCollectorGUI.cpp" />
     <ClCompile Include="ListBoxWindowNode.cpp" />
