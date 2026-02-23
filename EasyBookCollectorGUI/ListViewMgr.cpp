@@ -77,16 +77,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 
 	ListView_SetImageList(m_hLeftListView, m_hImageList, LVSIL_SMALL);
 
-	//如果在CreateWindowW时使用了属性LVS_SMALLICON，后面的列就显示不出来了
-	LVCOLUMNW lvc = { 0 };
-	lvc.mask = LVCF_TEXT | LVCF_WIDTH;
-	lvc.pszText = const_cast<LPWSTR>(L"名称");
-	lvc.cx = 100;
-	ListView_InsertColumn(m_hLeftListView, 0, &lvc);
-	lvc.pszText = const_cast<LPWSTR>(L"修改时间");
-	lvc.cx = 50;
-	ListView_InsertColumn(m_hLeftListView, 1, &lvc);
-
+	ListViewInsertColumn(m_hLeftListView);
 	// 初始化左面板列（仅显示名称，模拟文件夹列表）
 	LoadVirtualFolder(m_hLeftListView, g_left_current_parent);
 
@@ -95,14 +86,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
 		m_nInitSplitterX + m_nInitSplitterWidth, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
 	ListView_SetImageList(m_hRightListView, m_hImageList, LVSIL_SMALL);
-
-	lvc.mask = LVCF_TEXT | LVCF_WIDTH;
-	lvc.pszText = const_cast<LPWSTR>(L"名称");
-	lvc.cx = 100;
-	ListView_InsertColumn(m_hRightListView, 0, &lvc);
-	lvc.pszText = const_cast<LPWSTR>(L"修改时间");
-	lvc.cx = 50;
-	ListView_InsertColumn(m_hRightListView, 1, &lvc);
+	ListViewInsertColumn(m_hRightListView);
 	LoadVirtualFolder(m_hRightListView, g_right_current_parent);
 
 	return TRUE;
@@ -206,8 +190,10 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		{
 			m_hHorizontalSplitter = CreateWindowW(L"STATIC", L"",
 				WS_CHILD | WS_VISIBLE ,//| SS_ETCHEDHORZ默认固定高度
-				0, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
-				m_nInitListViewWidth, m_nInitSplitterWidth, 
+				0, 
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				m_nInitListViewWidth * 2 + m_nInitSplitterWidth, 
+				m_nInitSplitterWidth, 
 				hWnd, 
 				NULL, 
 				GetModuleHandle(NULL), 
@@ -224,10 +210,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		MoveWindow(m_hVerticalSplitter, nWidth, 0, nSplitterWidth, rcClient.bottom, TRUE);
 		MoveWindow(m_hRightListView, nWidth + nSplitterWidth, 0, nWidth, rcClient.bottom, TRUE);*/
 
-		m_hLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
-			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
-			0, 0, m_nInitListViewWidth, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2 , hWnd, NULL, GetModuleHandle(NULL), NULL);
-
 		// 创建/显示四面板的4个ListView（没有则创建）
 		// 上左面板
 		if (!m_hTopLeftListView) 
@@ -242,11 +224,8 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 				GetModuleHandle(NULL), 
 				NULL);
 			ListView_SetImageList(m_hTopLeftListView, m_hImageList, LVSIL_SMALL);
-			LVCOLUMNW lvc = { 0 };
-			lvc.mask = LVCF_TEXT | LVCF_WIDTH;
-			//lvc.pszText = L"名称"; 
-			lvc.cx = 300;
-			ListView_InsertColumn(m_hTopLeftListView, 0, &lvc);
+			ListViewInsertColumn(m_hTopLeftListView);
+
 			LoadVirtualFolder(m_hTopLeftListView, -1);
 		}
 		else 
@@ -267,11 +246,8 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 				GetModuleHandle(NULL), 
 				NULL);
 			ListView_SetImageList(m_hTopRightListView, m_hImageList, LVSIL_SMALL);
-			LVCOLUMNW lvc = { 0 };
-			lvc.mask = LVCF_TEXT | LVCF_WIDTH;
-			//lvc.pszText = L"名称"; 
-			lvc.cx = 300;
-			ListView_InsertColumn(m_hTopRightListView, 0, &lvc);
+			ListViewInsertColumn(m_hTopRightListView);
+
 			LoadVirtualFolder(m_hTopRightListView, -1);
 		}
 		else 
@@ -292,11 +268,8 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 				GetModuleHandle(NULL), 
 				NULL);
 			ListView_SetImageList(m_hBottomLeftListView, m_hImageList, LVSIL_SMALL);
-			LVCOLUMNW lvc = { 0 };
-			lvc.mask = LVCF_TEXT | LVCF_WIDTH;
-			//lvc.pszText = L"名称"; 
-			lvc.cx = 300;
-			ListView_InsertColumn(m_hBottomLeftListView, 0, &lvc);
+			ListViewInsertColumn(m_hBottomLeftListView);
+
 			LoadVirtualFolder(m_hBottomLeftListView, -1);
 		}
 		else {
@@ -315,14 +288,11 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 				GetModuleHandle(NULL), 
 				NULL);
 			ListView_SetImageList(m_hBottomRightListView, m_hImageList, LVSIL_SMALL);
-			LVCOLUMNW lvc = { 0 };
-			lvc.mask = LVCF_TEXT | LVCF_WIDTH;
-			//lvc.pszText = L"名称"; 
-			lvc.cx = 300;
-			ListView_InsertColumn(m_hBottomRightListView, 0, &lvc);
+			ListViewInsertColumn(m_hBottomRightListView);
 			LoadVirtualFolder(m_hBottomRightListView, -1);
 		}
-		else {
+		else 
+		{
 			ShowWindow(m_hBottomRightListView, SW_SHOW);
 		}
 
@@ -408,6 +378,28 @@ void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 		lvi.lParam = node->nID;
 		ListView_InsertItem(hList, &lvi);
 	}
+}
+
+void CListViewMgr::ListViewInsertColumn(HWND hWnd)
+{
+	//如果在CreateWindowW时使用了属性LVS_SMALLICON，后面的列就显示不出来了
+	LVCOLUMNW lvc = { 0 };
+	lvc.mask = LVCF_TEXT | LVCF_WIDTH;
+	lvc.pszText = const_cast<LPWSTR>(L"名称");
+	lvc.cx = 100;
+	int nColIndex = ListView_InsertColumn(hWnd, 0, &lvc);
+	if (nColIndex == -1) 
+	{
+		wchar_t szErr[256];
+		int nErr = GetLastError();
+		wsprintfW(szErr, L"插入列失败！错误码：%d", nErr);
+	}
+	else {
+		//MessageBoxW(hWnd, L"列插入成功！", L"成功", MB_OK);
+	}
+	lvc.pszText = const_cast<LPWSTR>(L"修改时间");
+	lvc.cx = 50;
+	ListView_InsertColumn(hWnd, 1, &lvc);
 }
 
 const unsigned int CListViewMgr::GetInitMainWndWidth()

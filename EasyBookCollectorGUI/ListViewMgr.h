@@ -91,6 +91,7 @@ private:
 	ItemNode* FindVirtualFoldNode(int node_id);
 	void LoadVirtualFolder(HWND hList, int parent_id);
 
+	void ListViewInsertColumn(HWND hWnd);
 private:
 	HIMAGELIST m_hImageList;
 	BOOL m_bInit;
