@@ -17,6 +17,11 @@ typedef struct {
 	WCHAR szDesc[512];    // 模拟自定义描述
 } ItemNode;
 
+typedef enum {
+	PANEL_MODE_DOUBLE = 0,  // 双面板（默认）
+	PANEL_MODE_QUAD = 1     // 四面板
+} PanelMode;
+
 class CListViewMgr
 {
 public:
@@ -74,6 +79,12 @@ public:
 	VOID SetDraggingStatus(BOOL bStatus);
 
 	VOID DestoryImageList();
+
+	BOOL TogglePanelMode(HWND hWnd);
+
+	const unsigned int GetInitMainWndWidth();
+	const unsigned int GetInitSplitterWidth();
+
 private:
 	CListViewMgr(const CListViewMgr& other);
 	CListViewMgr& operator=(const CListViewMgr& other);
@@ -91,5 +102,15 @@ private:
 	HIMAGELIST m_hImageList;
 	BOOL m_bInit;
 	BOOL m_bDragging;
+	PanelMode m_PanelMode;
+	HWND m_hVerticalSplitter; // 初始化时的那个纵向拆分条
+	HWND m_hHorizontalSplitter; // 扩展成四个ListView时的那个横向拆分条
+	HWND m_hLeftListView, m_hRightListView;   // 左右面板ListView
+	HWND m_hTopLeftList;
+	unsigned int m_nInitSplitterX;           // 拆分条位置
+	unsigned int m_nInitListViewHeight;//初始展示的双ListView时的高度
+	unsigned int m_nInitListViewWidth;//初始展示的双ListView时的宽
+	unsigned int m_nInitMainWndWidth;
+	unsigned int m_nInitSplitterWidth;
 };
 

@@ -25,9 +25,6 @@ CListBoxWndManager g_ListBoxWndMgr;
 CPipeMgr::CPipeServer g_PipeMgr;
 HWND hChildList = NULL;
 
-extern const unsigned int g_nSplitterX;           
-extern const unsigned int g_nDefaultSubWindowWidth;
-extern const unsigned int g_nDefaultSplitterWidth;
 
 #define MOUSE_LEAVE_MONITOR 2001
 #define ID_MAIN_LISTBOX 3001 // 目录按钮ID
@@ -65,10 +62,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 	case WM_SIZE: 
 	{
-		if (g_ListViewMgr.IsInitStatus())//第一次初始化的时候
-		{
-			g_ListViewMgr.ShowDoubleListView(hWnd);
-		}
+		//if (g_ListViewMgr.IsInitStatus())//第一次初始化的时候
+		//{
+		//	g_ListViewMgr.ShowDoubleListView(hWnd);
+		//}
 
 		if (g_ListViewMgr.IsDraggingStatus())
 		{
@@ -149,8 +146,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	{
 		// 原有Backspace返回上一级逻辑不变...
 			// F12切换双/四面板
-		if (wParam == VK_F12) {
-			//TogglePanelMode(hWnd);
+		if (wParam == VK_F11) {
+			g_ListViewMgr.TogglePanelMode(hWnd);
 			break;
 		}
 		break;
@@ -203,7 +200,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	if (!MyRegisterClass(hInstance)) return FALSE;
 
 	HWND hWnd = CreateWindowW(L"VirtualFolderDemo", L"书籍目录保存",
-		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 2 * g_nDefaultSubWindowWidth + g_nDefaultSplitterWidth, 600,
+		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, g_ListViewMgr.GetInitMainWndWidth(), 600,
 		NULL, NULL, hInstance, NULL);
 	if (!hWnd) return FALSE;
 
