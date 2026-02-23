@@ -39,7 +39,8 @@ CListViewMgr::CListViewMgr():
 	m_hHorizontalSplitter(NULL),
 	m_hLeftListView(NULL),
 	m_hRightListView(NULL),
-	//m_nSplitterX(400),
+	m_hTopRightListView(NULL),
+	m_hTopLeftListView(NULL),
 	m_nInitListViewHeight(0),
 	m_nInitListViewWidth(0),
 	m_nInitMainWndWidth(810),
@@ -103,21 +104,6 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	lvc.cx = 50;
 	ListView_InsertColumn(m_hRightListView, 1, &lvc);
 	LoadVirtualFolder(m_hRightListView, g_right_current_parent);
-
-	return TRUE;
-}
-
-BOOL CListViewMgr::ShowDoubleListView(HWND hWnd)
-{
-	RECT rcClient;
-	GetClientRect(hWnd, &rcClient);
-
-	int nSplitterWidth = m_nInitSplitterWidth;
-	//int nWidth = (rcClient.right - rcClient.left - g_nDefaultSplitterWidth) / 2;
-	/*MoveWindow(m_hLeftListView, 0, 0, m_nInitListViewWidth, m_nInitListViewHeight, TRUE);
-	MoveWindow(m_hVerticalSplitter, m_nInitListViewWidth, 0, nSplitterWidth, m_nInitListViewHeight, TRUE);
-	MoveWindow(m_hRightListView, m_nInitListViewWidth + nSplitterWidth, 0, m_nInitListViewWidth, m_nInitListViewHeight, TRUE);*/
-	m_bInit = FALSE;
 
 	return TRUE;
 }
@@ -210,10 +196,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 	m_PanelMode = (m_PanelMode == PANEL_MODE_DOUBLE) ? PANEL_MODE_QUAD : PANEL_MODE_DOUBLE;
 
 	// 2. 获取主窗口客户区大小
-	RECT rcClient;
-	GetClientRect(hWnd, &rcClient);
-	int nClientWidth = rcClient.right - rcClient.left;
-	int nClientHeight = rcClient.bottom - rcClient.top;
 
 	// 如果切换为四个ListView,调整布局
 	if (m_PanelMode == PANEL_MODE_QUAD) 
@@ -224,7 +206,12 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		{
 			m_hHorizontalSplitter = CreateWindowW(L"STATIC", L"",
 				WS_CHILD | WS_VISIBLE ,//| SS_ETCHEDHORZ默认固定高度
-				0, nClientHeight / 2 - 5, nClientWidth, 10, hWnd, NULL, GetModuleHandle(NULL), NULL);
+				0, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				m_nInitListViewWidth, m_nInitSplitterWidth, 
+				hWnd, 
+				NULL, 
+				GetModuleHandle(NULL), 
+				NULL);
 		}
 		else 
 		{
@@ -237,72 +224,111 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		MoveWindow(m_hVerticalSplitter, nWidth, 0, nSplitterWidth, rcClient.bottom, TRUE);
 		MoveWindow(m_hRightListView, nWidth + nSplitterWidth, 0, nWidth, rcClient.bottom, TRUE);*/
 
-		/*m_hLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
+		m_hLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
 			WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
-			0, 0, g_nDefaultSubWindowWidth, nListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);*/
+			0, 0, m_nInitListViewWidth, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2 , hWnd, NULL, GetModuleHandle(NULL), NULL);
 
 		// 创建/显示四面板的4个ListView（没有则创建）
 		// 上左面板
-		//if (!m_hTopLeftList) 
-		//{
-		//	m_hTopLeftList = CreateWindowW(WC_LISTVIEWW, L"",
-		//		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
-		//		0, 0, g_nDefaultSubWindowWidth, g_nHSplitterY - 5, hWnd, NULL, GetModuleHandle(NULL), NULL);
-		//	ListView_SetImageList(m_hTopLeftList, m_hImageList, TVSIL_NORMAL);
-		//	LVCOLUMNW lvc = { 0 };
-		//	lvc.mask = LVCF_TEXT | LVCF_WIDTH;
-		//	//lvc.pszText = L"名称"; 
-		//	lvc.cx = 300;
-		//	ListView_InsertColumn(m_hTopLeftList, 0, &lvc);
-		//	LoadVirtualFolder(m_hTopLeftList, g_tl_current_parent);
-		//}
-		//else 
-		//{
-		//	ShowWindow(m_hTopLeftList, SW_SHOW);
-		//}
+		if (!m_hTopLeftListView) 
+		{
+			m_hTopLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
+				0, 0, 
+				m_nInitListViewWidth, 
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				hWnd, 
+				NULL, 
+				GetModuleHandle(NULL), 
+				NULL);
+			ListView_SetImageList(m_hTopLeftListView, m_hImageList, LVSIL_SMALL);
+			LVCOLUMNW lvc = { 0 };
+			lvc.mask = LVCF_TEXT | LVCF_WIDTH;
+			//lvc.pszText = L"名称"; 
+			lvc.cx = 300;
+			ListView_InsertColumn(m_hTopLeftListView, 0, &lvc);
+			LoadVirtualFolder(m_hTopLeftListView, -1);
+		}
+		else 
+		{
+			ShowWindow(m_hTopLeftListView, SW_SHOW);
+		}
 
-		//// 上右面板
-		//if (!g_hTopRightList) {
-		//	g_hTopRightList = CreateWindowW(WC_LISTVIEWW, L"",
-		//		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
-		//		g_nSplitterX + 5, 0, nClientWidth - g_nSplitterX - 5, g_nHSplitterY - 5, hWnd, NULL, GetModuleHandle(NULL), NULL);
-		//	ListView_SetImageList(g_hTopRightList, g_hImageList, TVSIL_NORMAL);
-		//	ListView_InsertColumn(g_hTopRightList, 0, &lvc);
-		//	LoadVirtualFolder(g_hTopRightList, g_tr_current_parent);
-		//}
-		//else {
-		//	ShowWindow(g_hTopRightList, SW_SHOW);
-		//}
+		// 上右面板
+		if (!m_hTopRightListView) 
+		{
+			m_hTopRightListView = CreateWindowW(WC_LISTVIEWW, L"",
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
+				m_nInitSplitterX + m_nInitSplitterWidth, 0, 
+				m_nInitListViewWidth, 
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				hWnd, 
+				NULL, 
+				GetModuleHandle(NULL), 
+				NULL);
+			ListView_SetImageList(m_hTopRightListView, m_hImageList, LVSIL_SMALL);
+			LVCOLUMNW lvc = { 0 };
+			lvc.mask = LVCF_TEXT | LVCF_WIDTH;
+			//lvc.pszText = L"名称"; 
+			lvc.cx = 300;
+			ListView_InsertColumn(m_hTopRightListView, 0, &lvc);
+			LoadVirtualFolder(m_hTopRightListView, -1);
+		}
+		else 
+		{
+			ShowWindow(m_hTopRightListView, SW_SHOW);
+		}
 
 		//// 下左面板
-		//if (!g_hBottomLeftList) {
-		//	g_hBottomLeftList = CreateWindowW(WC_LISTVIEWW, L"",
-		//		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
-		//		0, g_nHSplitterY + 5, g_nSplitterX - 5, nClientHeight - g_nHSplitterY - 5, hWnd, NULL, GetModuleHandle(NULL), NULL);
-		//	ListView_SetImageList(g_hBottomLeftList, g_hImageList, TVSIL_NORMAL);
-		//	ListView_InsertColumn(g_hBottomLeftList, 0, &lvc);
-		//	LoadVirtualFolder(g_hBottomLeftList, g_bl_current_parent);
-		//}
-		//else {
-		//	ShowWindow(g_hBottomLeftList, SW_SHOW);
-		//}
+		if (!m_hBottomLeftListView) {
+			m_hBottomLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
+				0, 
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth, 
+				m_nInitListViewWidth, 
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				hWnd, 
+				NULL, 
+				GetModuleHandle(NULL), 
+				NULL);
+			ListView_SetImageList(m_hBottomLeftListView, m_hImageList, LVSIL_SMALL);
+			LVCOLUMNW lvc = { 0 };
+			lvc.mask = LVCF_TEXT | LVCF_WIDTH;
+			//lvc.pszText = L"名称"; 
+			lvc.cx = 300;
+			ListView_InsertColumn(m_hBottomLeftListView, 0, &lvc);
+			LoadVirtualFolder(m_hBottomLeftListView, -1);
+		}
+		else {
+			ShowWindow(m_hBottomLeftListView, SW_SHOW);
+		}
 
-		//// 下右面板
-		//if (!g_hBottomRightList) {
-		//	g_hBottomRightList = CreateWindowW(WC_LISTVIEWW, L"",
-		//		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
-		//		g_nSplitterX + 5, g_nHSplitterY + 5, nClientWidth - g_nSplitterX - 5, nClientHeight - g_nHSplitterY - 5, hWnd, NULL, GetModuleHandle(NULL), NULL);
-		//	ListView_SetImageList(g_hBottomRightList, g_hImageList, TVSIL_NORMAL);
-		//	ListView_InsertColumn(g_hBottomRightList, 0, &lvc);
-		//	LoadVirtualFolder(g_hBottomRightList, g_br_current_parent);
-		//}
-		//else {
-		//	ShowWindow(g_hBottomRightList, SW_SHOW);
-		//}
+		// 下右面板
+		if (!m_hBottomRightListView) {
+			m_hBottomRightListView = CreateWindowW(WC_LISTVIEWW, L"",
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
+				m_nInitSplitterX + m_nInitSplitterWidth, 
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth, 
+				m_nInitListViewWidth, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				hWnd, 
+				NULL, 
+				GetModuleHandle(NULL), 
+				NULL);
+			ListView_SetImageList(m_hBottomRightListView, m_hImageList, LVSIL_SMALL);
+			LVCOLUMNW lvc = { 0 };
+			lvc.mask = LVCF_TEXT | LVCF_WIDTH;
+			//lvc.pszText = L"名称"; 
+			lvc.cx = 300;
+			ListView_InsertColumn(m_hBottomRightListView, 0, &lvc);
+			LoadVirtualFolder(m_hBottomRightListView, -1);
+		}
+		else {
+			ShowWindow(m_hBottomRightListView, SW_SHOW);
+		}
 
-		//// 隐藏原来的双面板控件
-		//ShowWindow(g_hLeftList, SW_HIDE);
-		//ShowWindow(g_hRightList, SW_HIDE);
+		// 隐藏原来的双面板控件
+		ShowWindow(m_hLeftListView, SW_HIDE);
+		ShowWindow(m_hRightListView, SW_HIDE);
 	}
 	else {
 		// ========== 切换为双面板 ==========
@@ -321,7 +347,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 	}
 
 	// 刷新垂直拆分条位置
-	MoveWindow(m_hVerticalSplitter, m_nInitSplitterX, 0, 5, nClientHeight, TRUE);
+	//MoveWindow(m_hVerticalSplitter, m_nInitSplitterX, 0, 5, nClientHeight, TRUE);
 	return TRUE;
 }
 

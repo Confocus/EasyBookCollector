@@ -35,13 +35,6 @@ public:
 	BOOL InitDoubleListViewAndLoadData(HWND hWnd);
 
 	/**************************************************************************
-	* @brief 显示初始化的两个ListView
-	* @param
-	* @return
-	*************************************************************************/
-	BOOL ShowDoubleListView(HWND hWnd);
-
-	/**************************************************************************
 	* @brief 拖拽中间的Splitter的时候重绘两个ListView
 	* @param
 	* @return
@@ -106,7 +99,11 @@ private:
 	HWND m_hVerticalSplitter; // 初始化时的那个纵向拆分条
 	HWND m_hHorizontalSplitter; // 扩展成四个ListView时的那个横向拆分条
 	HWND m_hLeftListView, m_hRightListView;   // 左右面板ListView
-	HWND m_hTopLeftList;
+	HWND m_hTopLeftListView;
+	HWND m_hTopRightListView;
+	HWND m_hBottomLeftListView;
+	HWND m_hBottomRightListView;
+
 	unsigned int m_nInitSplitterX;           // 拆分条位置
 	unsigned int m_nInitListViewHeight;//初始展示的双ListView时的高度
 	unsigned int m_nInitListViewWidth;//初始展示的双ListView时的宽
