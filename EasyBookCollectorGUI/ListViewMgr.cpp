@@ -44,7 +44,7 @@ CListViewMgr::CListViewMgr():
 	m_nInitListViewWidth(0),
 	m_nInitMainWndWidth(810),
 	m_nInitSplitterWidth(10),
-	m_nSplitterX(0)
+	m_nCurrentSplitterX(0)
 {
 
 }
@@ -104,20 +104,32 @@ BOOL CListViewMgr::DragSplitterAndRefreshDoubleListView(HWND hWnd)
 	{
 		// 调整左面板尺寸
 		SetWindowPos(m_hLeftListView, NULL,
-			0, 0, m_nSplitterX, m_nInitListViewHeight,
+			0, 0, m_nCurrentSplitterX, m_nInitListViewHeight,
 			SWP_NOZORDER | SWP_NOACTIVATE);
 
 		// 调整分隔条尺寸
 		SetWindowPos(m_hVerticalSplitter, NULL,
-			m_nSplitterX, 0, m_nInitSplitterWidth, m_nInitListViewHeight,
+			m_nCurrentSplitterX, 0, m_nInitSplitterWidth, m_nInitListViewHeight,
 			SWP_NOZORDER | SWP_NOACTIVATE);
 
 		// 调整右面板尺寸
 		SetWindowPos(m_hRightListView, NULL,
-			m_nSplitterX + m_nInitSplitterWidth, 0,
-			2 * m_nInitListViewWidth + m_nInitSplitterWidth - m_nSplitterX - m_nInitSplitterWidth,
+			m_nCurrentSplitterX + m_nInitSplitterWidth, 0,
+			nClientWidth - m_nCurrentSplitterX - m_nInitSplitterWidth,
 			m_nInitListViewHeight,
 			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		//不刷新右侧窗口，会有拖拽的痕迹
+		RECT rcInvalid = {
+			m_nCurrentSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值
+			0,                                 // 上边界：顶部
+			rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
+			rcClient.bottom                    // 下边界：底部
+		};
+		InvalidateRect(hWnd, &rcInvalid, TRUE); // TRUE=强制擦除背景，清除残留
+		UpdateWindow(hWnd); // 立即刷新，避免延迟
+
+
 	}
 	
 
@@ -151,7 +163,9 @@ BOOL CListViewMgr::DragSplitterAndSendMessage(HWND hWnd, UINT msg, WPARAM wParam
 	//int nMinPos = 50;  // 左面板最小宽度
 	//int nMaxPos = rcClient.right - 100; // 右面板最小宽度
 	//g_nSplitterPos = max(nMinPos, min(pt.x, nMaxPos));
-	m_nSplitterX = pt.x;
+	RECT rcSplitter;
+	GetWindowRect(m_hVerticalSplitter, &rcSplitter);
+	m_nCurrentSplitterX = pt.x;
 	// 立即刷新布局（触发WM_SIZE）
 	SendMessage(hWnd, WM_SIZE, 0, 0);
 	// 保持鼠标光标样式
