@@ -62,11 +62,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 	case WM_SIZE: 
 	{
-		//if (g_ListViewMgr.IsInitStatus())//第一次初始化的时候
-		//{
-		//	g_ListViewMgr.ShowDoubleListView(hWnd);
-		//}
-
 		if (g_ListViewMgr.IsDraggingStatus())
 		{
 			g_ListViewMgr.DragSplitterAndRefreshDoubleListView(hWnd);

@@ -203,12 +203,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 			ShowWindow(m_hHorizontalSplitter, SW_SHOW);
 		}
 
-		/*int nSplitterWidth = g_nDefaultSplitterWidth;
-		int nWidth = (rcClient.right - rcClient.left - g_nDefaultSplitterWidth) / 2;
-		MoveWindow(m_hLeftListView, 0, 0, nWidth, rcClient.bottom, TRUE);
-		MoveWindow(m_hVerticalSplitter, nWidth, 0, nSplitterWidth, rcClient.bottom, TRUE);
-		MoveWindow(m_hRightListView, nWidth + nSplitterWidth, 0, nWidth, rcClient.bottom, TRUE);*/
-
 		// 创建/显示四面板的4个ListView（没有则创建）
 		// 上左面板
 		if (!m_hTopLeftListView) 
@@ -294,7 +288,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		{
 			ShowWindow(m_hBottomRightListView, SW_SHOW);
 		}
-
+		ShowWindow(m_hVerticalSplitter, SW_HIDE);
 		// 隐藏原来的双面板控件
 		ShowWindow(m_hLeftListView, SW_HIDE);
 		ShowWindow(m_hRightListView, SW_HIDE);
@@ -302,17 +296,17 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 	else {
 		// ========== 切换为双面板 ==========
 		// 隐藏水平拆分条和四面板控件
-		//if (g_hHSplitter) ShowWindow(g_hHSplitter, SW_HIDE);
-		//if (g_hTopLeftList) ShowWindow(g_hTopLeftList, SW_HIDE);
-		//if (g_hTopRightList) ShowWindow(g_hTopRightList, SW_HIDE);
-		//if (g_hBottomLeftList) ShowWindow(g_hBottomLeftList, SW_HIDE);
-		//if (g_hBottomRightList) ShowWindow(g_hBottomRightList, SW_HIDE);
+		if (m_hHorizontalSplitter) ShowWindow(m_hHorizontalSplitter, SW_HIDE);
+		if (m_hTopLeftListView) ShowWindow(m_hTopLeftListView, SW_HIDE);
+		if (m_hTopRightListView) ShowWindow(m_hTopRightListView, SW_HIDE);
+		if (m_hBottomLeftListView) ShowWindow(m_hBottomLeftListView, SW_HIDE);
+		if (m_hBottomRightListView) ShowWindow(m_hBottomRightListView, SW_HIDE);
 
-		//// 显示原来的双面板控件并调整大小
-		//ShowWindow(g_hLeftList, SW_SHOW);
-		//ShowWindow(g_hRightList, SW_SHOW);
-		//MoveWindow(g_hLeftList, 0, 0, g_nSplitterX - 5, nClientHeight, TRUE);
-		//MoveWindow(g_hRightList, g_nSplitterX + 5, 0, nClientWidth - g_nSplitterX - 5, nClientHeight, TRUE);
+		// 显示原来的双面板控件并调整大小
+		ShowWindow(m_hLeftListView, SW_SHOW);
+		ShowWindow(m_hRightListView, SW_SHOW);
+		/*MoveWindow(g_hLeftList, 0, 0, g_nSplitterX - 5, nClientHeight, TRUE);
+		MoveWindow(g_hRightList, g_nSplitterX + 5, 0, nClientWidth - g_nSplitterX - 5, nClientHeight, TRUE);*/
 	}
 
 	// 刷新垂直拆分条位置
