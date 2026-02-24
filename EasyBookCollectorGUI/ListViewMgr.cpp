@@ -24,7 +24,6 @@ ItemNode g_szTestNode[] = {
 unsigned int g_nNodeCount = sizeof(g_szTestNode) / sizeof(ItemNode);
 
 //注意：const 全局变量默认是 internal linkage（内部链接）
-int g_nSplitterPos = 0;
 // 当前层级：记录每个面板的当前父节点ID（模拟“当前目录”）
 int g_left_current_parent = -1;
 int g_right_current_parent = -1;
@@ -44,7 +43,8 @@ CListViewMgr::CListViewMgr():
 	m_nInitListViewHeight(0),
 	m_nInitListViewWidth(0),
 	m_nInitMainWndWidth(810),
-	m_nInitSplitterWidth(10)
+	m_nInitSplitterWidth(10),
+	m_nSplitterX(0)
 {
 
 }
@@ -100,21 +100,26 @@ BOOL CListViewMgr::DragSplitterAndRefreshDoubleListView(HWND hWnd)
 	int nClientWidth = rcClient.right;
 	int nClientHeight = rcClient.bottom;
 
-	// 调整左面板尺寸
-	SetWindowPos(m_hLeftListView, NULL,
-		0, 0, g_nSplitterPos, nClientHeight,
-		SWP_NOZORDER | SWP_NOACTIVATE);
+	if (m_PanelMode == PANEL_MODE_DOUBLE)
+	{
+		// 调整左面板尺寸
+		SetWindowPos(m_hLeftListView, NULL,
+			0, 0, m_nSplitterX, m_nInitListViewHeight,
+			SWP_NOZORDER | SWP_NOACTIVATE);
 
-	// 调整分隔条尺寸
-	SetWindowPos(m_hVerticalSplitter, NULL,
-		g_nSplitterPos, 0, m_nInitSplitterWidth, nClientHeight,
-		SWP_NOZORDER | SWP_NOACTIVATE);
+		// 调整分隔条尺寸
+		SetWindowPos(m_hVerticalSplitter, NULL,
+			m_nSplitterX, 0, m_nInitSplitterWidth, m_nInitListViewHeight,
+			SWP_NOZORDER | SWP_NOACTIVATE);
 
-	// 调整右面板尺寸
-	SetWindowPos(m_hRightListView, NULL,
-		g_nSplitterPos + m_nInitSplitterWidth, 0,
-		nClientWidth - g_nSplitterPos - m_nInitSplitterWidth, nClientHeight,
-		SWP_NOZORDER | SWP_NOACTIVATE);
+		// 调整右面板尺寸
+		SetWindowPos(m_hRightListView, NULL,
+			m_nSplitterX + m_nInitSplitterWidth, 0,
+			2 * m_nInitListViewWidth + m_nInitSplitterWidth - m_nSplitterX - m_nInitSplitterWidth,
+			m_nInitListViewHeight,
+			SWP_NOZORDER | SWP_NOACTIVATE);
+	}
+	
 
 	return TRUE;
 }
@@ -146,7 +151,7 @@ BOOL CListViewMgr::DragSplitterAndSendMessage(HWND hWnd, UINT msg, WPARAM wParam
 	//int nMinPos = 50;  // 左面板最小宽度
 	//int nMaxPos = rcClient.right - 100; // 右面板最小宽度
 	//g_nSplitterPos = max(nMinPos, min(pt.x, nMaxPos));
-	g_nSplitterPos = pt.x;
+	m_nSplitterX = pt.x;
 	// 立即刷新布局（触发WM_SIZE）
 	SendMessage(hWnd, WM_SIZE, 0, 0);
 	// 保持鼠标光标样式
@@ -169,8 +174,55 @@ VOID CListViewMgr::SetDraggingStatus(BOOL bStatus)
 	m_bDragging = bStatus;
 }
 
-VOID CListViewMgr::DestoryImageList()
+VOID CListViewMgr::Destory()
 {
+	if (m_hTopLeftListView)
+	{
+		DestroyWindow(m_hTopLeftListView);
+		m_hTopLeftListView = NULL; // 销毁后置空，避免野指针
+	}
+
+	if (m_hTopRightListView)
+	{
+		DestroyWindow(m_hTopRightListView);
+		m_hTopRightListView = NULL; 
+	}
+
+	if (m_hBottomLeftListView)
+	{
+		DestroyWindow(m_hBottomLeftListView);
+		m_hBottomLeftListView = NULL;
+	}
+
+	if (m_hBottomRightListView)
+	{
+		DestroyWindow(m_hBottomRightListView);
+		m_hBottomRightListView = NULL;
+	}
+
+	if (m_hLeftListView)
+	{
+		DestroyWindow(m_hLeftListView);
+		m_hLeftListView = NULL;
+	}
+
+	if (m_hRightListView)
+	{
+		DestroyWindow(m_hRightListView);
+		m_hRightListView = NULL;
+	}
+
+	if (m_hVerticalSplitter)
+	{
+		DestroyWindow(m_hVerticalSplitter);
+		m_hVerticalSplitter = NULL;
+	}
+
+	if (m_hHorizontalSplitter)
+	{
+		DestroyWindow(m_hHorizontalSplitter);
+		m_hHorizontalSplitter = NULL;
+	}
 	ImageList_Destroy(m_hImageList);
 }
 
@@ -288,7 +340,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		{
 			ShowWindow(m_hBottomRightListView, SW_SHOW);
 		}
-		ShowWindow(m_hVerticalSplitter, SW_HIDE);
+		ShowWindow(m_hVerticalSplitter, SW_SHOW);
 		// 隐藏原来的双面板控件
 		ShowWindow(m_hLeftListView, SW_HIDE);
 		ShowWindow(m_hRightListView, SW_HIDE);

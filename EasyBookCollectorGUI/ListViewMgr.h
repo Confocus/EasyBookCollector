@@ -71,7 +71,7 @@ public:
 
 	VOID SetDraggingStatus(BOOL bStatus);
 
-	VOID DestoryImageList();
+	VOID Destory();
 
 	BOOL TogglePanelMode(HWND hWnd);
 
@@ -105,10 +105,11 @@ private:
 	HWND m_hBottomLeftListView;
 	HWND m_hBottomRightListView;
 
+	unsigned int m_nSplitterX;	//拖动Splitter时的位置
 	unsigned int m_nInitSplitterX;           // 拆分条位置
 	unsigned int m_nInitListViewHeight;//初始展示的双ListView时的高度
 	unsigned int m_nInitListViewWidth;//初始展示的双ListView时的宽
 	unsigned int m_nInitMainWndWidth;
-	unsigned int m_nInitSplitterWidth;
+	const unsigned int m_nInitSplitterWidth;
 };
 

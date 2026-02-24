@@ -166,7 +166,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 
 	case WM_DESTROY: {
-		g_ListViewMgr.DestoryImageList();
+		g_ListViewMgr.Destory();
 		PostQuitMessage(0);
 		break;
 	}
