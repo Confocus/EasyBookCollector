@@ -180,7 +180,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 	m_PanelMode = (m_PanelMode == PANEL_MODE_DOUBLE) ? PANEL_MODE_QUAD : PANEL_MODE_DOUBLE;
 
 	// 2. 获取主窗口客户区大小
-
 	// 如果切换为四个ListView,调整布局
 	if (m_PanelMode == PANEL_MODE_QUAD) 
 	{
@@ -215,7 +214,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		if (!m_hTopLeftListView) 
 		{
 			m_hTopLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
-				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,//注意：这里如果加了 LVS_SMALLICON 就不显示列了
 				0, 0, 
 				m_nInitListViewWidth, 
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
@@ -237,7 +236,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		if (!m_hTopRightListView) 
 		{
 			m_hTopRightListView = CreateWindowW(WC_LISTVIEWW, L"",
-				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
 				m_nInitSplitterX + m_nInitSplitterWidth, 0, 
 				m_nInitListViewWidth, 
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
@@ -258,7 +257,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		//// 下左面板
 		if (!m_hBottomLeftListView) {
 			m_hBottomLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
-				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
 				0, 
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth, 
 				m_nInitListViewWidth, 
@@ -279,7 +278,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		// 下右面板
 		if (!m_hBottomRightListView) {
 			m_hBottomRightListView = CreateWindowW(WC_LISTVIEWW, L"",
-				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SMALLICON | WS_BORDER,
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
 				m_nInitSplitterX + m_nInitSplitterWidth, 
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth, 
 				m_nInitListViewWidth, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
