@@ -98,8 +98,6 @@ BOOL CListViewMgr::DragSplitterAndRefreshDoubleListView(HWND hWnd)
 	// 获取父窗口客户区尺寸
 	RECT rcClient;
 	GetClientRect(hWnd, &rcClient);
-	int nClientWidth = rcClient.right;
-	int nClientHeight = rcClient.bottom;
 
 	if (m_PanelMode == PANEL_MODE_DOUBLE)
 	{
@@ -116,7 +114,7 @@ BOOL CListViewMgr::DragSplitterAndRefreshDoubleListView(HWND hWnd)
 		// 调整右面板尺寸
 		SetWindowPos(m_hRightListView, NULL,
 			m_nCurrentSplitterX + m_nInitSplitterWidth, 0,
-			nClientWidth - m_nCurrentSplitterX - m_nInitSplitterWidth,
+			rcClient.right - m_nCurrentSplitterX - m_nInitSplitterWidth,
 			m_nInitListViewHeight,
 			SWP_NOZORDER | SWP_NOACTIVATE);
 
@@ -364,6 +362,21 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		// 隐藏原来的双面板控件
 		ShowWindow(m_hLeftListView, SW_HIDE);
 		ShowWindow(m_hRightListView, SW_HIDE);
+		
+		RECT rcClient;
+		GetClientRect(hWnd, &rcClient);
+		RECT rcInvalid = {
+			0, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
+			0,                                 // 上边界：顶部
+			//rcClient.right会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
+			rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
+			rcClient.bottom                    // 下边界：底部
+		};
+
+		//不加Invalidate和Update就会有多余的一些颜色溢出Splitter
+		//但是加上之后会闪烁，第三格参数改为FALSE就好了
+		InvalidateRect(hWnd, &rcInvalid, FALSE);
+		UpdateWindow(hWnd); // 立即刷新，避免延迟
 	}
 	else {
 		// ========== 切换为双面板 ==========
