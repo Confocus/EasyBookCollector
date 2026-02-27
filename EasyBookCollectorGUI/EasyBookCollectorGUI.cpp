@@ -53,6 +53,8 @@ CListViewMgr g_ListViewMgr;
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg)
 	{
+	case WM_ERASEBKGND:
+		return TRUE; // 不擦除背景，自己在WM_PAINT里绘制，解决了拖拽Splitter时ListView边缘闪烁的问题
 	case WM_CREATE: 
 	{
 		
@@ -90,6 +92,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		{
 			ReleaseCapture();
 			g_ListViewMgr.SetDraggingStatus(FALSE);
+			//g_ListViewMgr.RecoverRedrawListView();
 		}
 		break;
 	}

@@ -74,7 +74,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	m_hLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
 		0, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
-
+	
 	ListView_SetImageList(m_hLeftListView, m_hImageList, LVSIL_SMALL);
 
 	ListViewInsertColumn(m_hLeftListView);
@@ -85,6 +85,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	m_hRightListView = CreateWindowW(WC_LISTVIEWW, L"",
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
 		m_nInitSplitterX + m_nInitSplitterWidth, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
+
 	ListView_SetImageList(m_hRightListView, m_hImageList, LVSIL_SMALL);
 	ListViewInsertColumn(m_hRightListView);
 	LoadVirtualFolder(m_hRightListView, g_right_current_parent);
@@ -121,18 +122,19 @@ BOOL CListViewMgr::DragSplitterAndRefreshDoubleListView(HWND hWnd)
 
 		//不刷新右侧窗口，会有拖拽的痕迹
 		RECT rcInvalid = {
-			m_nCurrentSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值
+			m_nCurrentSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
 			0,                                 // 上边界：顶部
-			rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
+			//rcClient.right会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
+			m_nCurrentSplitterX + 2 * m_nInitSplitterWidth, // 右边界：取新旧X的最大值+拆分条宽度（5）
 			rcClient.bottom                    // 下边界：底部
 		};
-		InvalidateRect(hWnd, &rcInvalid, TRUE); // TRUE=强制擦除背景，清除残留
+
+		//不加Invalidate和Update就会有多余的一些颜色溢出Splitter
+		//但是加上之后会闪烁，第三格参数改为FALSE就好了
+		InvalidateRect(hWnd, &rcInvalid, FALSE); 
 		UpdateWindow(hWnd); // 立即刷新，避免延迟
-
-
 	}
 	
-
 	return TRUE;
 }
 
@@ -151,6 +153,10 @@ BOOL CListViewMgr::PressSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		SetCapture(hWnd);
 		// 改变鼠标光标为左右箭头
 		SetCursor(LoadCursor(NULL, IDC_SIZEWE));
+
+		// 暂停左右 ListView 重绘（关键：拖拽中不绘制，无闪烁）
+		/*if (m_hLeftListView) SendMessage(m_hLeftListView, WM_SETREDRAW, FALSE, 0);
+		if (m_hRightListView) SendMessage(m_hRightListView, WM_SETREDRAW, FALSE, 0);*/
 	}
 	return TRUE;
 }
@@ -469,6 +475,21 @@ const unsigned int CListViewMgr::GetInitMainWndWidth()
 const unsigned int CListViewMgr::GetInitSplitterWidth()
 {
 	return m_nInitSplitterWidth;
+}
+
+VOID CListViewMgr::RecoverRedrawListView()
+{
+	// 恢复 ListView 重绘，并一次性刷新（仅触发一次，无闪烁）
+	if (m_hLeftListView)
+	{
+		SendMessage(m_hLeftListView, WM_SETREDRAW, TRUE, 0);
+		RedrawWindow(m_hLeftListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+	}
+	if (m_hRightListView)
+	{
+		SendMessage(m_hRightListView, WM_SETREDRAW, TRUE, 0);
+		RedrawWindow(m_hRightListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+	}
 }
 
 // 根据节点ID查找虚拟节点
