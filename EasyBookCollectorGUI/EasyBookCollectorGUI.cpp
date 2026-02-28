@@ -66,7 +66,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	{
 		if (g_ListViewMgr.IsDraggingStatus())
 		{
-			g_ListViewMgr.DragSplitterAndRefreshDoubleListView(hWnd);
+			g_ListViewMgr.DragSplitterAndRefreshAllListView(hWnd);
 		}
 		break;
 	}

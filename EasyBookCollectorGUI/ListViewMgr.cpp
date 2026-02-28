@@ -22,12 +22,24 @@ ItemNode g_szTestNode[] = {
 
 };
 unsigned int g_nNodeCount = sizeof(g_szTestNode) / sizeof(ItemNode);
+WNDPROC g_OldListViewProc = NULL;
 
 //注意：const 全局变量默认是 internal linkage（内部链接）
 // 当前层级：记录每个面板的当前父节点ID（模拟“当前目录”）
 int g_left_current_parent = -1;
 int g_right_current_parent = -1;
 // 图标列表（文件夹/文件图标）
+
+LRESULT CALLBACK ListViewSubProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	// 核心：ListView自身也不擦除背景
+	if (uMsg == WM_ERASEBKGND)
+	{
+		return TRUE; // 和主窗口逻辑一致，跳过擦除
+	}
+	// 其他消息走原始逻辑，不影响ListView功能
+	return CallWindowProc(g_OldListViewProc, hWnd, uMsg, wParam, lParam);
+}
 
 CListViewMgr::CListViewMgr():
 	m_hImageList(NULL),
@@ -46,7 +58,6 @@ CListViewMgr::CListViewMgr():
 	m_nInitSplitterWidth(10),
 	m_nCurrentSplitterX(0)
 {
-
 }
 
 CListViewMgr::~CListViewMgr()
@@ -72,7 +83,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 
 	// 创建左面板ListView
 	m_hLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
-		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
+		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS ,//| WS_BORDER
 		0, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
 	
 	ListView_SetImageList(m_hLeftListView, m_hImageList, LVSIL_SMALL);
@@ -83,7 +94,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 
 	// 创建右面板ListView
 	m_hRightListView = CreateWindowW(WC_LISTVIEWW, L"",
-		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
+		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
 		m_nInitSplitterX + m_nInitSplitterWidth, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
 
 	ListView_SetImageList(m_hRightListView, m_hImageList, LVSIL_SMALL);
@@ -92,8 +103,29 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 
 	return TRUE;
 }
+//
+//// /*InitSingleListView(m_hTopLeftListView);
+//InitSingleListView(m_hTopRightListView);
+//InitSingleListView(m_hBottomLeftListView);
+//InitSingleListView(m_hBottomRightListView); 
+//RECT rcClient;
+////InvalidateRect(m_hTopLeftListView, &rcClient, FALSE);
+////InvalidateRect(m_hBottomLeftListView, &rcClient, FALSE);
+//
+//RECT rcInvalid = {
+//	m_nInitSplitterX + m_nInitSplitterWidth,
+//	(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth,
+//	m_nInitListViewWidth,
+//	(m_nInitListViewHeight - m_nInitSplitterWidth) / 2
+//};
+//InvalidateRect(m_hTopRightListView, &rcInvalid, FALSE);
+////InvalidateRect(m_hBottomRightListView, &rcClient, FALSE);
+////UpdateWindow(m_hTopLeftListView);
+////UpdateWindow(m_hBottomLeftListView);
+//UpdateWindow(m_hTopRightListView);
+////UpdateWindow(m_hBottomRightListView);
 
-BOOL CListViewMgr::DragSplitterAndRefreshDoubleListView(HWND hWnd)
+BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 {
 	// 获取父窗口客户区尺寸
 	RECT rcClient;
@@ -133,6 +165,57 @@ BOOL CListViewMgr::DragSplitterAndRefreshDoubleListView(HWND hWnd)
 		UpdateWindow(hWnd); // 立即刷新，避免延迟
 	}
 	
+	if (m_PanelMode == PANEL_MODE_QUAD)
+	{
+		// 调整分隔条尺寸
+		SetWindowPos(m_hVerticalSplitter, NULL,
+			m_nCurrentSplitterX,
+			0,
+			m_nInitSplitterWidth,
+			m_nInitListViewHeight,
+			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		// 调整左面板尺寸
+		SetWindowPos(m_hTopLeftListView, NULL,
+			0, 0, 
+			m_nCurrentSplitterX, 
+			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		// 调整右面板尺寸
+		SetWindowPos(m_hTopRightListView, NULL,
+			m_nCurrentSplitterX + m_nInitSplitterWidth, 
+			0,
+			rcClient.right - m_nCurrentSplitterX - m_nInitSplitterWidth,
+			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		SetWindowPos(m_hBottomLeftListView, NULL,
+			0, 
+			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth,
+			m_nCurrentSplitterX, 
+			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		SetWindowPos(m_hBottomRightListView, NULL,
+			m_nCurrentSplitterX + m_nInitSplitterWidth, 
+			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth,
+			rcClient.right - m_nCurrentSplitterX - m_nInitSplitterWidth,
+			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		RECT rcInvalid = {
+			m_nCurrentSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
+			0,                                 // 上边界：顶部
+			//会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
+			rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
+			rcClient.bottom                    // 下边界：底部
+		};
+
+		InvalidateRect(hWnd, &rcInvalid, FALSE);
+		UpdateWindow(hWnd); // 立即刷新，避免延迟
+	}
+
 	return TRUE;
 }
 
@@ -258,7 +341,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		if (!m_hHorizontalSplitter) 
 		{
 			m_hHorizontalSplitter = CreateWindowW(L"STATIC", L"",
-				WS_CHILD | WS_VISIBLE ,//| SS_ETCHEDHORZ默认固定高度
+				WS_CHILD | WS_VISIBLE ,//| SS_ETCHEDHORZ默认固定高度 
 				0, 
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
 				m_nInitListViewWidth * 2 + m_nInitSplitterWidth, 
@@ -278,7 +361,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		if (!m_hTopLeftListView) 
 		{
 			m_hTopLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
-				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,//注意：这里如果加了 LVS_SMALLICON 就不显示列了
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,//注意：这里如果加了 LVS_SMALLICON 就不显示列了
 				0, 0, 
 				m_nInitListViewWidth, 
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
@@ -300,7 +383,7 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		if (!m_hTopRightListView) 
 		{
 			m_hTopRightListView = CreateWindowW(WC_LISTVIEWW, L"",
-				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS ,
 				m_nInitSplitterX + m_nInitSplitterWidth, 0, 
 				m_nInitListViewWidth, 
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
@@ -319,13 +402,14 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		}
 
 		//// 下左面板
-		if (!m_hBottomLeftListView) {
+		if (!m_hBottomLeftListView) 
+		{
 			m_hBottomLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
-				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,//WS_BORDER
 				0, 
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth, 
 				m_nInitListViewWidth, 
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2,
 				hWnd, 
 				NULL, 
 				GetModuleHandle(NULL), 
@@ -335,17 +419,20 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 
 			LoadVirtualFolder(m_hBottomLeftListView, -1);
 		}
-		else {
+		else 
+		{
 			ShowWindow(m_hBottomLeftListView, SW_SHOW);
 		}
 
 		// 下右面板
-		if (!m_hBottomRightListView) {
+		if (!m_hBottomRightListView) 
+		{
 			m_hBottomRightListView = CreateWindowW(WC_LISTVIEWW, L"",
-				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | WS_BORDER,
+				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS ,
 				m_nInitSplitterX + m_nInitSplitterWidth, 
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth, 
-				m_nInitListViewWidth, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				m_nInitListViewWidth, 
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
 				hWnd, 
 				NULL, 
 				GetModuleHandle(NULL), 
@@ -359,26 +446,27 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 			ShowWindow(m_hBottomRightListView, SW_SHOW);
 		}
 		ShowWindow(m_hVerticalSplitter, SW_SHOW);
+
 		// 隐藏原来的双面板控件
 		ShowWindow(m_hLeftListView, SW_HIDE);
 		ShowWindow(m_hRightListView, SW_HIDE);
-		
-		RECT rcClient;
+		MoveWindow(m_hVerticalSplitter, m_nInitSplitterX, 0, m_nInitSplitterWidth, m_nInitListViewHeight, TRUE);
+		//MoveWindow(m_hBottomLeftListView, 0, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth , m_nInitListViewWidth, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2, TRUE);
+		//MoveWindow(m_hBottomRightListView, m_nInitSplitterX + m_nInitSplitterWidth, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth, m_nInitListViewWidth, (m_nInitListViewHeight - m_nInitSplitterWidth) / 2, TRUE);
+
+		/*RECT rcClient;
 		GetClientRect(hWnd, &rcClient);
 		RECT rcInvalid = {
-			0, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
-			0,                                 // 上边界：顶部
-			//rcClient.right会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
-			rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
-			rcClient.bottom                    // 下边界：底部
+			0, 
+			0,                                 
+			rcClient.right, 
+			rcClient.bottom                    
 		};
-
-		//不加Invalidate和Update就会有多余的一些颜色溢出Splitter
-		//但是加上之后会闪烁，第三格参数改为FALSE就好了
 		InvalidateRect(hWnd, &rcInvalid, FALSE);
-		UpdateWindow(hWnd); // 立即刷新，避免延迟
+		UpdateWindow(hWnd); */
 	}
-	else {
+	else 
+	{
 		// ========== 切换为双面板 ==========
 		// 隐藏水平拆分条和四面板控件
 		if (m_hHorizontalSplitter) ShowWindow(m_hHorizontalSplitter, SW_HIDE);
@@ -479,6 +567,26 @@ void CListViewMgr::ListViewInsertColumn(HWND hWnd)
 	lvc.cx = 50;
 	ListView_InsertColumn(hWnd, 1, &lvc);
 }
+
+
+void CListViewMgr::InitSingleListView(HWND hListView)
+{
+	if (!hListView) return;
+
+	// ① 保存原始窗口过程（只保存一次）
+	if (g_OldListViewProc == NULL)
+	{
+		g_OldListViewProc = (WNDPROC)GetWindowLongPtr(hListView, GWLP_WNDPROC);
+	}
+	// ② 子类化：让ListView用我们的窗口过程（拦截擦除）
+	SetWindowLongPtr(hListView, GWLP_WNDPROC, (LONG_PTR)ListViewSubProc);
+
+	// ③ 可选：加ListView专属双缓冲（降低绘制压力，锦上添花）
+	DWORD dwExStyle = ListView_GetExtendedListViewStyle(hListView);
+	dwExStyle |= LVS_EX_DOUBLEBUFFER; // 仅核心双缓冲，无SDK兼容问题
+	ListView_SetExtendedListViewStyle(hListView, dwExStyle);
+}
+
 
 const unsigned int CListViewMgr::GetInitMainWndWidth()
 {

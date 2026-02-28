@@ -39,7 +39,7 @@ public:
 	* @param
 	* @return
 	*************************************************************************/
-	BOOL DragSplitterAndRefreshDoubleListView(HWND hWnd);
+	BOOL DragSplitterAndRefreshAllListView(HWND hWnd);
 
 	/**************************************************************************
 	* @brief 按住Splitter准备拖动
@@ -94,6 +94,11 @@ private:
 	void LoadVirtualFolder(HWND hList, int parent_id);
 
 	void ListViewInsertColumn(HWND hWnd);
+
+	//LRESULT CALLBACK ListViewSubProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+	// 3. 初始化ListView的函数（给4个ListView都调用）
+	void InitSingleListView(HWND hListView);
+	
 private:
 	HIMAGELIST m_hImageList;
 	BOOL m_bInit;
