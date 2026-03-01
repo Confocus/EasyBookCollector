@@ -79,7 +79,7 @@ public:
 	const unsigned int GetInitSplitterWidth();
 
 	VOID RecoverRedrawListView();
-
+	HWND GetLeftListView();
 private:
 	CListViewMgr(const CListViewMgr& other);
 	CListViewMgr& operator=(const CListViewMgr& other);
