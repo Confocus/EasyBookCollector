@@ -1,6 +1,9 @@
 #include "ListViewMgr.h"
 #include <cstdlib>
 #include <cmath>    // 用于 double、float、long double 类型的 abs
+#include <commctrl.h>  // ListView_SetColumnWidth等宏定义在这里
+#pragma comment(lib, "comctl32.lib")  // 链接公共控件库（避免链接错误）
+
 // 模拟自定义数据（替代本地文件/数据库）
 ItemNode g_szTestNode[] = {
 	// 根节点（parent_id=-1）
@@ -88,11 +91,10 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 		0, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
 	
 	ListView_SetImageList(m_hLeftListView, m_hImageList, LVSIL_SMALL);
-
 	ListViewInsertColumn(m_hLeftListView);
 	// 初始化左面板列（仅显示名称，模拟文件夹列表）
 	LoadVirtualFolder(m_hLeftListView, g_left_current_parent);
-	// 创建右面板ListView
+	//// 创建右面板ListView
 	m_hRightListView = CreateWindowW(WC_LISTVIEWW, L"",
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
 		m_nInitSplitterX + m_nInitSplitterWidth, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
@@ -519,43 +521,179 @@ BOOL CListViewMgr::InitImageList()
 	nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
 	DestroyIcon(sfi.hIcon);
 
+	// ========== 核心：生成16×16全透明的空图标 ==========
+	HICON hEmptyIcon = NULL;
+	do
+	{
+		// 1. 创建内存DC和位图（16×16，32位真彩色）
+		HDC hdcScreen = GetDC(NULL);
+		HDC hdcMem = CreateCompatibleDC(hdcScreen);
+		HBITMAP hBmp = CreateCompatibleBitmap(hdcScreen, 16, 16);
+		HBITMAP hBmpOld = (HBITMAP)SelectObject(hdcMem, hBmp);
+
+		// 2. 填充全透明背景（关键：让图标无任何像素）
+		// 设置透明背景色（RGB(255,255,255)，配合ILC_MASK实现全透）
+		SetBkColor(hdcMem, RGB(255, 255, 255));
+		RECT rcIcon = { 0,0,16,16 };
+		FillRect(hdcMem, &rcIcon, (HBRUSH)GetStockObject(WHITE_BRUSH));
+
+		// 3. 从位图创建空图标
+		ICONINFO ii = { 0 };
+		ii.fIcon = TRUE; // 创建图标（非光标）
+		ii.hbmColor = hBmp;
+		ii.hbmMask = hBmp; // 掩码位图和颜色位图一致，实现全透
+		hEmptyIcon = CreateIconIndirect(&ii);
+
+		// 4. 释放临时资源
+		SelectObject(hdcMem, hBmpOld);
+		DeleteObject(hBmp);
+		DeleteDC(hdcMem);
+		ReleaseDC(NULL, hdcScreen);
+	} while (FALSE);
+
+	if (hEmptyIcon == NULL) {
+		ImageList_Destroy(m_hImageList);
+		m_hImageList = NULL;
+		return FALSE;
+	}
+
+	// ========== 替换原有图标：只添加空图标 ==========
+	// 索引0：空图标（文件夹原本的索引，现在用空图标）
+	int nEmptyIconIndex = ImageList_AddIcon(m_hImageList, hEmptyIcon);
+	// 索引1：空图标（文件原本的索引，也用空图标）
+	ImageList_AddIcon(m_hImageList, hEmptyIcon);
+	DestroyIcon(hEmptyIcon); // 用完销毁临时图标
+
+	
+
 	return TRUE;
 }
 
 
 // 加载指定父节点下的所有虚拟节点到ListView
+//void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
+//{
+//	// 清空列表
+//	ListView_DeleteAllItems(hList);
+//
+//	// 遍历自定义数据，加载对应节点
+//	for (unsigned int i = 0; i < g_nNodeCount; i++)
+//	{
+//		ItemNode* node = &g_szTestNode[i];
+//		if (node->nParentId != parent_id) continue;
+//
+//		// 插入ListView项
+//		LVITEMW lvi = { 0 };
+//		lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM;// 
+//		lvi.iItem = ListView_GetItemCount(hList);
+//		lvi.pszText = node->szName;
+//		// 图标：0=文件夹，1=文件
+//		lvi.iImage = node->bIsFolder ? 0 : 1;
+//		// 绑定自定义节点ID（关键：双击时识别是哪个节点）
+//		lvi.lParam = node->nID;
+//		//lvi.iSubItem = 1;
+//		ListView_InsertItem(hList, &lvi);
+//	}
+//}
+//
+//void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
+//{
+//	// 先清空列表
+//	ListView_DeleteAllItems(hList);
+//
+//	for (unsigned int i = 0; i < g_nNodeCount; i++)
+//	{
+//		ItemNode* node = &g_szTestNode[i];
+//		if (node->nParentId != parent_id) continue;
+//
+//		// 计算当前行号
+//		int nRow = ListView_GetItemCount(hList);
+//
+//		
+//		LVITEMW lviEmpty = { 0 };
+//		lviEmpty.mask = LVIF_TEXT | LVIF_PARAM; // 文本可以为空，绑定 lParam
+//		lviEmpty.iItem = nRow;
+//		lviEmpty.iSubItem = 0; // 第一列
+//		lviEmpty.pszText = const_cast<LPWSTR>(L""); // 空文本
+//		lviEmpty.lParam = node->nID;
+//		ListView_InsertItem(hList, &lviEmpty);
+//
+//		// -----------------------------
+//		// 设置图标在第0列（原来的图标列）
+//		// 注意：iImage 只能作用在第0列，所以我们让图标显示在视觉上的第二列
+//		// -----------------------------
+//		LVITEMW lviIcon = { 0 };
+//		lviIcon.mask = LVIF_IMAGE;
+//		lviIcon.iItem = nRow;
+//		lviIcon.iSubItem = 0; // 图标必须在第0列
+//		lviIcon.iImage = node->bIsFolder ? 0 : 1;
+//		lviEmpty.iIndent = 5;
+//		ListView_SetItem(hList, &lviIcon);
+//
+//		// -----------------------------
+//		// 设置文本在第二列（索引 1）
+//		// -----------------------------
+//		ListView_SetItemText(hList, nRow, 1, node->szName);
+//	}
+//}
 void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 {
 	// 清空列表
 	ListView_DeleteAllItems(hList);
 
-	// 遍历自定义数据，加载对应节点
+	// 开启扩展样式：支持子项图标
+	DWORD exStyle = ListView_GetExtendedListViewStyle(hList);
+	exStyle |= LVS_EX_SUBITEMIMAGES | LVS_EX_FULLROWSELECT;
+	ListView_SetExtendedListViewStyle(hList, exStyle);
+
 	for (unsigned int i = 0; i < g_nNodeCount; i++)
 	{
 		ItemNode* node = &g_szTestNode[i];
 		if (node->nParentId != parent_id) continue;
 
-		// 插入ListView项
-		LVITEMW lvi = { 0 };
-		lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM;
-		lvi.iItem = ListView_GetItemCount(hList);
-		lvi.pszText = node->szName;
-		// 图标：0=文件夹，1=文件
-		lvi.iImage = node->bIsFolder ? 0 : 1;
-		// 绑定自定义节点ID（关键：双击时识别是哪个节点）
-		lvi.lParam = node->nID;
-		ListView_InsertItem(hList, &lvi);
+		int nRow = ListView_GetItemCount(hList);
+
+		// -----------------------------
+		// 第0列：空白列，只是留白
+		// -----------------------------
+		LVITEMW lviBlank = { 0 };
+		lviBlank.mask = LVIF_IMAGE;
+		lviBlank.iItem = nRow;
+		lviBlank.iSubItem = 0;
+		//lviBlank.pszText = const_cast<LPWSTR>(L""); // 空文本
+		lviBlank.iImage = 2;
+		lviBlank.lParam = node->nID;
+		ListView_InsertItem(hList, &lviBlank);
+
+		// -----------------------------
+		// 第1列：图标 + 文本
+		// -----------------------------
+		// 先插入列文本
+		ListView_SetItemText(hList, nRow, 1, node->szName);
+
+		// 再设置图标（子列图标）
+		LVITEMW lviIcon = { 0 };
+		lviIcon.mask = LVIF_IMAGE;
+		lviIcon.iItem = nRow;
+		lviIcon.iSubItem = 1; // 图标显示在第1列
+		lviIcon.iImage = node->bIsFolder ? 0 : 1;
+		ListView_SetItem(hList, &lviIcon);
 	}
 }
-
 void CListViewMgr::ListViewInsertColumn(HWND hWnd)
 {
+	LVCOLUMNW lvc2 = { 0 };
+	lvc2.mask = LVCF_TEXT | LVCF_WIDTH;
+	lvc2.pszText = const_cast<LPWSTR>(L"");
+	lvc2.cx = 10;
+	int nColIndex2 = ListView_InsertColumn(hWnd, 0, &lvc2);
+
 	//如果在CreateWindowW时使用了属性LVS_SMALLICON，后面的列就显示不出来了
 	LVCOLUMNW lvc = { 0 };
 	lvc.mask = LVCF_TEXT | LVCF_WIDTH;
 	lvc.pszText = const_cast<LPWSTR>(L"名称");
-	lvc.cx = 100;
-	int nColIndex = ListView_InsertColumn(hWnd, 0, &lvc);
+	lvc.cx = 200;
+	int nColIndex = ListView_InsertColumn(hWnd, 1, &lvc);
 	if (nColIndex == -1) 
 	{
 		wchar_t szErr[256];
@@ -567,9 +705,9 @@ void CListViewMgr::ListViewInsertColumn(HWND hWnd)
 	}
 	lvc.pszText = const_cast<LPWSTR>(L"修改时间");
 	lvc.cx = 50;
-	ListView_InsertColumn(hWnd, 1, &lvc);
-}
 
+	ListView_InsertColumn(hWnd, 2, &lvc);
+}
 
 void CListViewMgr::InitSingleListView(HWND hListView)
 {
