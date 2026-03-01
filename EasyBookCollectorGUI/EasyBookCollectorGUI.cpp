@@ -193,12 +193,13 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 	return RegisterClassExW(&wcex);
 }
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) 
+{
 	InitCommonControls();
 	if (!MyRegisterClass(hInstance)) return FALSE;
 
 	HWND hWnd = CreateWindowW(L"VirtualFolderDemo", L"书籍目录保存",
-		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, g_ListViewMgr.GetInitMainWndWidth(), 600,
+		WS_OVERLAPPEDWINDOW , CW_USEDEFAULT, CW_USEDEFAULT, g_ListViewMgr.GetInitMainWndWidth(), 600,//| WS_CLIPCHILDREN
 		NULL, NULL, hInstance, NULL);
 	if (!hWnd) return FALSE;
 

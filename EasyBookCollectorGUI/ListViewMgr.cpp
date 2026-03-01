@@ -1,6 +1,6 @@
 #include "ListViewMgr.h"
-
-
+#include <cstdlib>
+#include <cmath>    // 用于 double、float、long double 类型的 abs
 // 模拟自定义数据（替代本地文件/数据库）
 ItemNode g_szTestNode[] = {
 	// 根节点（parent_id=-1）
@@ -74,6 +74,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	m_nInitListViewHeight = rcClient.bottom - rcClient.top; // 父窗口完整高度
 	m_nInitListViewWidth = (rcClient.right - rcClient.left - m_nInitSplitterWidth) / 2;
 	m_nInitSplitterX = m_nInitListViewWidth;
+	m_nLastSplitterX = m_nInitListViewWidth;
 	// 创建拆分条
 	//注意，这里的CreateWindows时输入的坐标会被WM_SIZE是MoveWindow的坐标覆盖掉
 	//这里不用计算了
@@ -83,7 +84,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 
 	// 创建左面板ListView
 	m_hLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
-		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS ,//| WS_BORDER
+		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,//| WS_BORDER | WS_CLIPCHILDREN
 		0, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
 	
 	ListView_SetImageList(m_hLeftListView, m_hImageList, LVSIL_SMALL);
@@ -91,7 +92,6 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	ListViewInsertColumn(m_hLeftListView);
 	// 初始化左面板列（仅显示名称，模拟文件夹列表）
 	LoadVirtualFolder(m_hLeftListView, g_left_current_parent);
-
 	// 创建右面板ListView
 	m_hRightListView = CreateWindowW(WC_LISTVIEWW, L"",
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
@@ -131,8 +131,9 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 	RECT rcClient;
 	GetClientRect(hWnd, &rcClient);
 
-	if (m_PanelMode == PANEL_MODE_DOUBLE)
+	if (m_PanelMode == PANEL_MODE_DOUBLE && std::abs(static_cast<int>(m_nCurrentSplitterX - m_nLastSplitterX)) > 2)// 
 	{
+		m_nLastSplitterX = m_nCurrentSplitterX;
 		// 调整左面板尺寸
 		SetWindowPos(m_hLeftListView, NULL,
 			0, 0, m_nCurrentSplitterX, m_nInitListViewHeight,
@@ -149,7 +150,7 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 			rcClient.right - m_nCurrentSplitterX - m_nInitSplitterWidth,
 			m_nInitListViewHeight,
 			SWP_NOZORDER | SWP_NOACTIVATE);
-
+		
 		//不刷新右侧窗口，会有拖拽的痕迹
 		RECT rcInvalid = {
 			m_nCurrentSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
@@ -158,11 +159,12 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 			m_nCurrentSplitterX + 2 * m_nInitSplitterWidth, // 右边界：取新旧X的最大值+拆分条宽度（5）
 			rcClient.bottom                    // 下边界：底部
 		};
-
+		
 		//不加Invalidate和Update就会有多余的一些颜色溢出Splitter
 		//但是加上之后会闪烁，第三格参数改为FALSE就好了
 		InvalidateRect(hWnd, &rcInvalid, FALSE); 
 		UpdateWindow(hWnd); // 立即刷新，避免延迟
+
 	}
 	
 	if (m_PanelMode == PANEL_MODE_QUAD)
@@ -204,16 +206,16 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
 			SWP_NOZORDER | SWP_NOACTIVATE);
 
-		RECT rcInvalid = {
-			m_nCurrentSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
-			0,                                 // 上边界：顶部
-			//会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
-			rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
-			rcClient.bottom                    // 下边界：底部
-		};
+		//RECT rcInvalid = {
+		//	m_nCurrentSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
+		//	0,                                 // 上边界：顶部
+		//	//会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
+		//	rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
+		//	rcClient.bottom                    // 下边界：底部
+		//};
 
-		InvalidateRect(hWnd, &rcInvalid, FALSE);
-		UpdateWindow(hWnd); // 立即刷新，避免延迟
+		//InvalidateRect(hWnd, &rcInvalid, FALSE);
+		//UpdateWindow(hWnd); // 立即刷新，避免延迟
 	}
 
 	return TRUE;
@@ -573,13 +575,13 @@ void CListViewMgr::InitSingleListView(HWND hListView)
 {
 	if (!hListView) return;
 
-	// ① 保存原始窗口过程（只保存一次）
-	if (g_OldListViewProc == NULL)
-	{
-		g_OldListViewProc = (WNDPROC)GetWindowLongPtr(hListView, GWLP_WNDPROC);
-	}
-	// ② 子类化：让ListView用我们的窗口过程（拦截擦除）
-	SetWindowLongPtr(hListView, GWLP_WNDPROC, (LONG_PTR)ListViewSubProc);
+	//// ① 保存原始窗口过程（只保存一次）
+	//if (g_OldListViewProc == NULL)
+	//{
+	//	g_OldListViewProc = (WNDPROC)GetWindowLongPtr(hListView, GWLP_WNDPROC);
+	//}
+	//// ② 子类化：让ListView用我们的窗口过程（拦截擦除）
+	//SetWindowLongPtr(hListView, GWLP_WNDPROC, (LONG_PTR)ListViewSubProc);
 
 	// ③ 可选：加ListView专属双缓冲（降低绘制压力，锦上添花）
 	DWORD dwExStyle = ListView_GetExtendedListViewStyle(hListView);

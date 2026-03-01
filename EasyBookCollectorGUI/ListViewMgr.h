@@ -117,6 +117,7 @@ private:
 	unsigned int m_nInitListViewHeight;//初始展示的双ListView时的高度
 	unsigned int m_nInitListViewWidth;//初始展示的双ListView时的宽
 	unsigned int m_nInitMainWndWidth;
+	unsigned int m_nLastSplitterX;
 	const unsigned int m_nInitSplitterWidth;
 };
 
