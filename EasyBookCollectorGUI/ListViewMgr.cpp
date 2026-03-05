@@ -177,7 +177,7 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 
 	}
 	
-	if (m_PanelMode == PANEL_MODE_QUAD && std::abs(static_cast<int>(m_nCurrentSplitterX - m_nLastSplitterX)) > 2)
+	if (m_PanelMode == PANEL_MODE_QUAD)// && std::abs(static_cast<int>(m_nCurrentSplitterX - m_nLastSplitterX)) > 2
 	{
 		// 调整分隔条尺寸
 		SetWindowPos(m_hVerticalSplitter, NULL,
@@ -216,16 +216,23 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
 			SWP_NOZORDER | SWP_NOACTIVATE);
 
-		//RECT rcInvalid = {
-		//	m_nCurrentSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
-		//	0,                                 // 上边界：顶部
-		//	//会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
-		//	rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
-		//	rcClient.bottom                    // 下边界：底部
-		//};
+		RECT rcInvalid = {
+			m_nCurrentSplitterX, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
+			0,                                 // 上边界：顶部
+			//rcClient.right会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
+			rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
+			rcClient.bottom                    // 下边界：底部
+		};
+		/*RedrawWindow(m_hTopRightListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+		RedrawWindow(m_hBottomRightListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+		RedrawWindow(m_hVerticalSplitter, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+		RedrawWindow(m_hTopLeftListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+		RedrawWindow(m_hBottomLeftListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);*/
 
-		//InvalidateRect(hWnd, &rcInvalid, FALSE);
-		//UpdateWindow(hWnd); // 立即刷新，避免延迟
+		//不加Invalidate和Update就会有多余的一些颜色溢出Splitter
+		//但是加上之后会闪烁，第三格参数改为FALSE就好了
+		InvalidateRect(hWnd, &rcInvalid, FALSE);
+		UpdateWindow(hWnd); // 立即刷新，避免延迟
 	}
 
 	return TRUE;
