@@ -217,22 +217,14 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 			SWP_NOZORDER | SWP_NOACTIVATE);
 
 		RECT rcInvalid = {
-			m_nCurrentSplitterX, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
-			0,                                 // 上边界：顶部
-			//rcClient.right会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
-			rcClient.right, // 右边界：取新旧X的最大值+拆分条宽度（5）
-			rcClient.bottom                    // 下边界：底部
+			m_nCurrentSplitterX, 
+			0,                                 
+			rcClient.right, 
+			rcClient.bottom                    
 		};
-		/*RedrawWindow(m_hTopRightListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-		RedrawWindow(m_hBottomRightListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-		RedrawWindow(m_hVerticalSplitter, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-		RedrawWindow(m_hTopLeftListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-		RedrawWindow(m_hBottomLeftListView, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);*/
-
-		//不加Invalidate和Update就会有多余的一些颜色溢出Splitter
-		//但是加上之后会闪烁，第三格参数改为FALSE就好了
+		
 		InvalidateRect(hWnd, &rcInvalid, FALSE);
-		UpdateWindow(hWnd); // 立即刷新，避免延迟
+		UpdateWindow(hWnd); 
 	}
 
 	return TRUE;
@@ -240,13 +232,16 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 
 BOOL CListViewMgr::PressSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	RECT rcSplitter;
-	GetWindowRect(m_hVerticalSplitter, &rcSplitter);
+	RECT rcVerticalSplitter;
+	GetWindowRect(m_hVerticalSplitter, &rcVerticalSplitter);
+	RECT rcHorizontalSplitter;
+	GetWindowRect(m_hHorizontalSplitter, &rcHorizontalSplitter);
+
 	POINT pt = { LOWORD(lParam), HIWORD(lParam) };
 	ClientToScreen(hWnd, &pt); // 转换为屏幕坐标
 
 	//判断鼠标是否在Splitter里
-	if (PtInRect(&rcSplitter, pt))
+	if (PtInRect(&rcVerticalSplitter, pt))
 	{
 		m_bDragging = TRUE;
 		// 设置鼠标捕获，确保拖动时能接收鼠标消息
@@ -257,6 +252,12 @@ BOOL CListViewMgr::PressSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		// 暂停左右 ListView 重绘（关键：拖拽中不绘制，无闪烁）
 		/*if (m_hLeftListView) SendMessage(m_hLeftListView, WM_SETREDRAW, FALSE, 0);
 		if (m_hRightListView) SendMessage(m_hRightListView, WM_SETREDRAW, FALSE, 0);*/
+	}
+	else if (PtInRect(&rcHorizontalSplitter, pt))
+	{
+		m_bDragging = TRUE;
+		SetCapture(hWnd);
+		SetCursor(LoadCursor(NULL, IDC_SIZENS));
 	}
 	return TRUE;
 }
