@@ -194,18 +194,20 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 			m_nCurrentHorizontalSplitterY,
 			SWP_NOZORDER | SWP_NOACTIVATE);
 
+		// 调整左下面板尺寸
 		SetWindowPos(m_hBottomLeftListView, NULL,
 			0,
 			m_nCurrentHorizontalSplitterY + m_nInitSplitterWidth,
 			m_nCurrentVerticalSplitterX,
-			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2,
+			m_nInitListViewHeight - m_nCurrentHorizontalSplitterY - m_nInitSplitterWidth,//( - m_nInitSplitterWidth) / 2,
 			SWP_NOZORDER | SWP_NOACTIVATE);
-
+		
+		// 调整右下面板尺寸
 		SetWindowPos(m_hBottomRightListView, NULL,
 			m_nCurrentVerticalSplitterX + m_nInitSplitterWidth,
 			m_nCurrentHorizontalSplitterY + m_nInitSplitterWidth,
 			rcClient.right - m_nCurrentVerticalSplitterX - m_nInitSplitterWidth,
-			(m_nInitListViewHeight - m_nInitSplitterWidth) / 2,
+			m_nInitListViewHeight - m_nCurrentHorizontalSplitterY - m_nInitSplitterWidth,
 			SWP_NOZORDER | SWP_NOACTIVATE);
 
 		RECT rcInvalid;
