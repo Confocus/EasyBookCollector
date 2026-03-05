@@ -91,7 +91,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		if (g_ListViewMgr.IsDraggingStatus())
 		{
 			ReleaseCapture();
-			g_ListViewMgr.SetDraggingStatus(FALSE);
+			g_ListViewMgr.SetDraggingStopStatus();
 			//g_ListViewMgr.RecoverRedrawListView();
 		}
 		break;

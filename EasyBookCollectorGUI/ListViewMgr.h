@@ -17,6 +17,13 @@ typedef struct {
 	WCHAR szDesc[512];    // 模拟自定义描述
 } ItemNode;
 
+typedef enum 
+{
+	DRAG_TYPE_STOP = 0,
+	DRAG_TYPE_VIRTICAL = 1,
+	DRAG_TYPE_HORIZONTAL = 2,
+}DragType;
+
 typedef enum {
 	PANEL_MODE_DOUBLE = 0,  // 双面板（默认）
 	PANEL_MODE_QUAD = 1     // 四面板
@@ -69,7 +76,7 @@ public:
 	*************************************************************************/
 	BOOL IsDraggingStatus();
 
-	VOID SetDraggingStatus(BOOL bStatus);
+	VOID SetDraggingStopStatus();
 
 	VOID Destory();
 
@@ -102,7 +109,7 @@ private:
 private:
 	HIMAGELIST m_hImageList;
 	BOOL m_bInit;
-	BOOL m_bDragging;
+	DragType m_eDraggingType;
 	PanelMode m_PanelMode;
 	HWND m_hVerticalSplitter; // 初始化时的那个纵向拆分条
 	HWND m_hHorizontalSplitter; // 扩展成四个ListView时的那个横向拆分条
@@ -112,7 +119,8 @@ private:
 	HWND m_hBottomLeftListView;
 	HWND m_hBottomRightListView;
 
-	unsigned int m_nCurrentSplitterX;	//拖动Splitter时的位置
+	unsigned int m_nCurrentVerticalSplitterX;	//拖动Splitter时的位置
+	unsigned int m_nCurrentHorizontalSplitterY;	//拖动Splitter时的位置
 	unsigned int m_nInitSplitterX;           // 拆分条位置
 	unsigned int m_nInitListViewHeight;//初始展示的双ListView时的高度
 	unsigned int m_nInitListViewWidth;//初始展示的双ListView时的宽
