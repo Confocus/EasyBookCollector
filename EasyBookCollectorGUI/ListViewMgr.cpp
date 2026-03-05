@@ -125,35 +125,16 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 
 	return TRUE;
 }
-//
-//// /*InitSingleListView(m_hTopLeftListView);
-//InitSingleListView(m_hTopRightListView);
-//InitSingleListView(m_hBottomLeftListView);
-//InitSingleListView(m_hBottomRightListView); 
-//RECT rcClient;
-////InvalidateRect(m_hTopLeftListView, &rcClient, FALSE);
-////InvalidateRect(m_hBottomLeftListView, &rcClient, FALSE);
-//
-//RECT rcInvalid = {
-//	m_nInitSplitterX + m_nInitSplitterWidth,
-//	(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth,
-//	m_nInitListViewWidth,
-//	(m_nInitListViewHeight - m_nInitSplitterWidth) / 2
-//};
-//InvalidateRect(m_hTopRightListView, &rcInvalid, FALSE);
-////InvalidateRect(m_hBottomRightListView, &rcClient, FALSE);
-////UpdateWindow(m_hTopLeftListView);
-////UpdateWindow(m_hBottomLeftListView);
-//UpdateWindow(m_hTopRightListView);
-////UpdateWindow(m_hBottomRightListView);
 
 BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 {
 	// 获取父窗口客户区尺寸
 	RECT rcClient;
 	GetClientRect(hWnd, &rcClient);
-
-	if (m_PanelMode == PANEL_MODE_DOUBLE && std::abs(static_cast<int>(m_nCurrentSplitterX - m_nLastSplitterX)) > 2)// 
+	//如果加了这句： && std::abs(static_cast<int>(m_nCurrentSplitterX - m_nLastSplitterX)) > 2 会出现一个问题
+	//即实际上m_nCurrentSplitterX移动了一个单位比如到591，但是由于m_nCurrentSplitterX - m_nLastSplitterX并没有大于2，所以
+	//纵向Splitter并没有移动到591，而右上右下ListView则是基于591计算的，所以就会比Splitter大一个单位
+	if (m_PanelMode == PANEL_MODE_DOUBLE)
 	{
 		m_nLastSplitterX = m_nCurrentSplitterX;
 		// 调整左面板尺寸
@@ -367,6 +348,8 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 	// 如果切换为四个ListView,调整布局
 	if (m_PanelMode == PANEL_MODE_QUAD) 
 	{
+		RECT rcClient;
+		GetClientRect(hWnd, &rcClient);
 		// ========== 切换为四面板 ==========
 		// 显示水平拆分条（没有则创建）
 		if (!m_hHorizontalSplitter) 
@@ -384,13 +367,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		}
 		else 
 		{
-			//ShowWindow(m_hHorizontalSplitter, SW_SHOW);
-			/*MoveWindow(m_hHorizontalSplitter, 
-				0, 
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2,
-				m_nInitListViewWidth * 2 + m_nInitSplitterWidth,
-				m_nInitSplitterWidth,
-				TRUE);*/
 			SetWindowPos(m_hHorizontalSplitter, NULL,
 				0,
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2,
@@ -398,7 +374,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 				m_nInitSplitterWidth,
 				SWP_SHOWWINDOW);
 		}
-
 		// 创建/显示四面板的4个ListView（没有则创建）
 		// 上左面板
 		if (!m_hTopLeftListView) 
@@ -420,13 +395,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		}
 		else 
 		{
-			//ShowWindow(m_hTopLeftListView, SW_SHOW);
-			/*MoveWindow(m_hTopLeftListView,
-				0,
-				0,
-				m_nCurrentSplitterX,
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2,
-				TRUE);*/
 			SetWindowPos(m_hTopLeftListView, NULL,
 				0,
 				0,
@@ -442,8 +410,8 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS ,
 				m_nCurrentSplitterX + m_nInitSplitterWidth,//m_nInitSplitterX + m_nInitSplitterWidth, 
 				0, 
-				m_nInitListViewWidth + (m_nInitSplitterX - m_nCurrentSplitterX),
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				m_nInitListViewWidth + (m_nInitSplitterX - m_nCurrentSplitterX), //rcClient.right - (m_nCurrentSplitterX + m_nInitSplitterWidth), //
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, //(rcClient.bottom - m_nInitSplitterWidth) / 2, //
 				hWnd, 
 				NULL, 
 				GetModuleHandle(NULL), 
@@ -455,13 +423,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		}
 		else 
 		{
-			//ShowWindow(m_hTopRightListView, SW_SHOW);
-			/*MoveWindow(m_hTopRightListView,
-				m_nCurrentSplitterX + m_nInitSplitterWidth,
-				0,
-				m_nInitListViewWidth + (m_nInitSplitterX - m_nCurrentSplitterX),
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2,
-				TRUE);*/
 			SetWindowPos(m_hTopRightListView, NULL,
 				m_nCurrentSplitterX + m_nInitSplitterWidth,
 				0,
@@ -490,13 +451,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		}
 		else 
 		{
-			//ShowWindow(m_hBottomLeftListView, SW_SHOW);
-			/*MoveWindow(m_hBottomLeftListView,
-				0,
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth,
-				m_nCurrentSplitterX,
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2,
-				TRUE);*/
 			SetWindowPos(m_hBottomLeftListView, NULL,
 				0,
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth,
@@ -512,8 +466,8 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 				WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS ,
 				m_nCurrentSplitterX + m_nInitSplitterWidth, //m_nInitSplitterX + m_nInitSplitterWidth,
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth, 
-				m_nInitListViewWidth + (m_nInitSplitterX - m_nCurrentSplitterX),
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, 
+				m_nInitListViewWidth + (m_nInitSplitterX - m_nCurrentSplitterX), //rcClient.right - (m_nCurrentSplitterX + m_nInitSplitterWidth),//
+				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2, //(rcClient.bottom - m_nInitSplitterWidth) / 2, //
 				hWnd, 
 				NULL, 
 				GetModuleHandle(NULL), 
@@ -524,13 +478,6 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		}
 		else 
 		{
-			//ShowWindow(m_hBottomRightListView, SW_SHOW);
-			/*MoveWindow(m_hBottomRightListView,
-				m_nCurrentSplitterX + m_nInitSplitterWidth,
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth,
-				m_nInitListViewWidth + (m_nInitSplitterX - m_nCurrentSplitterX),
-				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2,
-				TRUE);*/
 			SetWindowPos(m_hBottomRightListView, NULL,
 				m_nCurrentSplitterX + m_nInitSplitterWidth,
 				(m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth,
@@ -543,6 +490,14 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 		// 隐藏原来的双面板控件
 		ShowWindow(m_hLeftListView, SW_HIDE);
 		ShowWindow(m_hRightListView, SW_HIDE);
+		/*RECT rcInvalid = {
+		m_nInitSplitterX + m_nInitSplitterWidth,
+		0,
+		m_nInitSplitterX + 2 * m_nInitSplitterWidth,
+		m_nInitListViewHeight
+		};
+		InvalidateRect(hWnd, &rcInvalid, FALSE);
+		UpdateWindow(hWnd);*/
 	}
 	else 
 	{
