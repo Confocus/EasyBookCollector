@@ -282,15 +282,18 @@ BOOL CListViewMgr::DragSplitterAndSendMessage(HWND hWnd, UINT msg, WPARAM wParam
 	if (DRAG_TYPE_VIRTICAL == m_eDraggingType)
 	{
 		m_nCurrentVerticalSplitterX = pt.x;
+		// 立即刷新布局（触发WM_SIZE）
+		SendMessage(hWnd, WM_SIZE, 0, 0);
+		// 保持鼠标光标样式
+		SetCursor(LoadCursor(NULL, IDC_SIZEWE));
 	}
 	else if (DRAG_TYPE_HORIZONTAL == m_eDraggingType)
 	{
 		m_nCurrentHorizontalSplitterY = pt.y;
+		SendMessage(hWnd, WM_SIZE, 0, 0);
+		SetCursor(LoadCursor(NULL, IDC_SIZENS));
 	}
-	// 立即刷新布局（触发WM_SIZE）
-	SendMessage(hWnd, WM_SIZE, 0, 0);
-	// 保持鼠标光标样式
-	SetCursor(LoadCursor(NULL, IDC_SIZEWE));
+	
 	return TRUE;
 }
 
