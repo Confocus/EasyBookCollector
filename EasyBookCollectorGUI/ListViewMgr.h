@@ -8,8 +8,8 @@
 // ===================== 自定义数据结构（模拟虚拟文件夹/数据项） =====================
 // 虚拟节点：表示文件夹/数据项
 typedef struct {
-	unsigned int nID;             // 唯一ID
-	BOOL bIsFolder;     // 是否是文件夹
+	unsigned int nID;				// 唯一ID
+	BOOL bIsFolder;					// 是否是文件夹
 	WCHAR szName[MAX_NAME_LEN];    // 显示名称
 	unsigned int nParentId;      // 父节点ID（-1表示根节点）
 	// 自定义数据：比如数据库ID、内容描述等
@@ -87,6 +87,13 @@ public:
 
 	VOID RecoverRedrawListView();
 	HWND GetLeftListView();
+
+	/**************************************************************************
+	* @brief 处理双击文件夹的操作
+	* @param
+	* @return
+	*************************************************************************/
+	void EnterListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 private:
 	CListViewMgr(const CListViewMgr& other);
 	CListViewMgr& operator=(const CListViewMgr& other);
@@ -127,5 +134,6 @@ private:
 	unsigned int m_nInitMainWndWidth;
 	unsigned int m_nLastSplitterX;
 	const unsigned int m_nInitSplitterWidth;
+	int m_nLeftCurrentParent;//ListView的Folder的父节点
 };
 

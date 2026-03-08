@@ -57,7 +57,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		return TRUE; // 不擦除背景，自己在WM_PAINT里绘制，解决了拖拽Splitter时ListView边缘闪烁的问题
 	case WM_CREATE: 
 	{
-		
 		g_ListViewMgr.InitDoubleListViewAndLoadData(hWnd);
 		break;
 	}
@@ -100,42 +99,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	// 处理ListView双击（核心：进入虚拟文件夹）
 	case WM_NOTIFY: 
 	{
-		//todo:晚些处理
-		//NMHDR* pNMHDR = (NMHDR*)lParam;
-		//// 左面板双击
-		//if (pNMHDR->hwndFrom == g_hLeftListView && pNMHDR->code == NM_DBLCLK) {
-		//	LPNMITEMACTIVATE pNMItem = (LPNMITEMACTIVATE)lParam;
-		//	int node_id = (int)pNMItem->iItem != -1 ? ListView_GetItem(g_hLeftListView, pNMItem->iItem) : -1;
-		//	ItemNode* node = FindVirtualFoldNode(node_id);
-		//	if (node && node->bIsFolder) {
-		//		// 进入文件夹：更新当前父节点，重新加载
-		//		g_left_current_parent = node->nID;
-		//		LoadVirtualFolder(g_hLeftListView, g_left_current_parent);
-		//	}
-		//	else if (node && !node->bIsFolder) {
-		//		// 点击数据项：显示自定义数据
-		//		WCHAR msg[512];
-		//		wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
-		//			node->szName, node->db_id, node->szDesc);
-		//		MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
-		//	}
-		//}
-		//// 右面板双击
-		//if (pNMHDR->hwndFrom == g_hRightListView && pNMHDR->code == NM_DBLCLK) {
-		//	LPNMITEMACTIVATE pNMItem = (LPNMITEMACTIVATE)lParam;
-		//	int node_id = (int)pNMItem->iItem != -1 ? ListView_GetItem(g_hRightListView, pNMItem->iItem) : -1;
-		//	ItemNode* node = FindVirtualFoldNode(node_id);
-		//	if (node && node->bIsFolder) {
-		//		g_right_current_parent = node->nID;
-		//		LoadVirtualFolder(g_hRightListView, g_right_current_parent);
-		//	}
-		//	else if (node && !node->bIsFolder) {
-		//		WCHAR msg[512];
-		//		wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
-		//			node->szName, node->db_id, node->szDesc);
-		//		MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
-		//	}
-		//}
+		g_ListViewMgr.EnterListViewFolder( hWnd,  msg,  wParam,  lParam);
+		
+		// 右面板双击
+		/*if (pNMHDR->hwndFrom == g_hRightListView && pNMHDR->code == NM_DBLCLK) 
+		{
+			LPNMITEMACTIVATE pNMItem = (LPNMITEMACTIVATE)lParam;
+			int node_id = (int)pNMItem->iItem != -1 ? ListView_GetItem(g_hRightListView, pNMItem->iItem) : -1;
+			ItemNode* node = FindVirtualFoldNode(node_id);
+			if (node && node->bIsFolder) 
+			{
+				g_right_current_parent = node->nID;
+				LoadVirtualFolder(g_hRightListView, g_right_current_parent);
+			}
+			else if (node && !node->bIsFolder) 
+			{
+				WCHAR msg[512];
+				wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
+					node->szName, node->db_id, node->szDesc);
+				MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
+			}
+		}*/
 		break;
 	}
 

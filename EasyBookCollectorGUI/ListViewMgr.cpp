@@ -13,7 +13,7 @@ ItemNode g_szTestNode[] = {
 	// 图书分类的子节点（parent_id=1）
 	{4, true, L"编程类", 1, 0, L""},
 	{5, true, L"小说类", 1, 0, L""},
-	{6, false, L"Python实战.md", 1, 1002, L"Python入门教程，自定义数据"},
+	{6, false, L"Python实战.md", 2, 1002, L"Python入门教程，自定义数据"},
 	// 编程类的子节点（parent_id=4）
 	{7, false, L"Java核心技术.md", 4, 1003, L"Java进阶内容，自定义数据"},
 	{8, false, L"C++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
@@ -29,7 +29,6 @@ WNDPROC g_OldListViewProc = NULL;
 
 //注意：const 全局变量默认是 internal linkage（内部链接）
 // 当前层级：记录每个面板的当前父节点ID（模拟“当前目录”）
-int g_left_current_parent = -1;
 int g_right_current_parent = -1;
 // 图标列表（文件夹/文件图标）
 
@@ -60,7 +59,8 @@ CListViewMgr::CListViewMgr():
 	m_nInitMainWndWidth(810),
 	m_nInitSplitterWidth(10),
 	m_nCurrentVerticalSplitterX(0),
-	m_nCurrentHorizontalSplitterY(0)
+	m_nCurrentHorizontalSplitterY(0),
+	m_nLeftCurrentParent(-1)
 {
 }
 
@@ -96,7 +96,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	ListView_SetImageList(m_hLeftListView, m_hImageList, LVSIL_SMALL);
 	ListViewInsertColumn(m_hLeftListView);
 	// 初始化左面板列（仅显示名称，模拟文件夹列表）
-	LoadVirtualFolder(m_hLeftListView, g_left_current_parent);
+	LoadVirtualFolder(m_hLeftListView, m_nLeftCurrentParent);
 	//// 创建右面板ListView
 	m_hRightListView = CreateWindowW(WC_LISTVIEWW, L"",
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
@@ -647,7 +647,10 @@ void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 	for (unsigned int i = 0; i < g_nNodeCount; i++)
 	{
 		ItemNode* node = &g_szTestNode[i];
-		if (node->nParentId != parent_id) continue;
+		if (node->nParentId != parent_id)
+		{
+			continue;
+		}
 
 		// 插入ListView项
 		LVITEMW lvi = { 0 };
@@ -735,6 +738,51 @@ VOID CListViewMgr::RecoverRedrawListView()
 HWND CListViewMgr::GetLeftListView()
 {
 	return m_hLeftListView;
+}
+
+//todo:难道要构建一个树或表来时刻标记着自己遍历到哪个位置？
+//比如遍历到了第几层级
+void CListViewMgr::EnterListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	NMHDR* pNMHDR = (NMHDR*)lParam;
+	// 左面板双击
+	if (pNMHDR->hwndFrom == m_hLeftListView && pNMHDR->code == NM_DBLCLK)
+	{
+		/*NMITEMACTIVATE 是 Windows 通用控件中专门用于表示 “项被激活” 的通知结构
+		—— 核心作用是：当用户通过点击、双击、按回车等方式 “激活” 控件中的某一项（比如列表视图、树视图、列表框的项）时，
+		控件会通过 WM_NOTIFY 消息把这个结构传给父窗口，携带 “激活事件” 的详细信息。*/
+		LPNMITEMACTIVATE pNMItem = (LPNMITEMACTIVATE)lParam;
+		if (-1 == pNMItem->iItem)
+		{
+			return;
+		}
+
+		LVITEM lvItem = { 0 };
+		lvItem.mask = LVIF_PARAM; 
+		lvItem.iItem = pNMItem->iItem;
+
+		BOOL bRes = ListView_GetItem(m_hLeftListView, &lvItem);
+		if(FALSE == bRes)
+		{
+			return;
+		}
+		//todo:看看这里层级会不会变化？其实这里拿到的就是nID了
+		ItemNode* node = FindVirtualFoldNode(lvItem.lParam);
+		if (node && node->bIsFolder)
+		{
+			// 进入文件夹：更新当前父节点，重新加载
+			m_nLeftCurrentParent = node->nID;
+			LoadVirtualFolder(m_hLeftListView, m_nLeftCurrentParent);
+		}
+		else if (node && !node->bIsFolder)
+		{
+			// 点击数据项：显示自定义数据
+			WCHAR msg[512];
+			wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
+				node->szName, node->db_id, node->szDesc);
+			MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
+		}
+	}
 }
 
 // 根据节点ID查找虚拟节点
