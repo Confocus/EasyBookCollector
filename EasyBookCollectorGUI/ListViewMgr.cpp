@@ -1,9 +1,10 @@
 #include "ListViewMgr.h"
+#include <optional>
 #include <cstdlib>
 #include <cmath>    // 用于 double、float、long double 类型的 abs
 #include <commctrl.h>  // ListView_SetColumnWidth等宏定义在这里
 #pragma comment(lib, "comctl32.lib")  // 链接公共控件库（避免链接错误）
-
+#define ID_BACK_TO_PARENT	-1
 // 模拟自定义数据（替代本地文件/数据库）
 ItemNode g_szTestNode[] = {
 	// 根节点（parent_id=-1）
@@ -574,65 +575,44 @@ BOOL CListViewMgr::InitImageList()
 	SHFILEINFOW sfi = { 0 };
 
 	// 添加文件夹图标
+	//todo:有没有其它方式优化？
 	SHGetFileInfoW(
 		L"D:\\Tools",//todo:这里改下获取图标的方式； 
 		FILE_ATTRIBUTE_DIRECTORY, &sfi, sizeof(sfi),
-		SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
+		SHGFI_ICON | SHGSI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
 	//把 SHGetFileInfoW 返回的文件夹小图标句柄（sfi.hIcon）添加到图像列表中；
 	//作用：后续你可以通过图像列表的索引（比如 0）来使用这个文件夹图标（比如给 ListView / TreeView 控件设置图标）。
 	int nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
 	DestroyIcon(sfi.hIcon);
 
 	// 添加文件图标
+	//todo:有没有其它方式优化？
 	SHGetFileInfoW(L"*.txt", FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi),
-		SHGFI_ICON | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
+		SHGFI_ICON | SHGSI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
 	nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
 	DestroyIcon(sfi.hIcon);
 
-	//// ========== 核心：生成16×16全透明的空图标 ==========
-	//HICON hEmptyIcon = NULL;
-	//do
-	//{
-	//	// 1. 创建内存DC和位图（16×16，32位真彩色）
-	//	HDC hdcScreen = GetDC(NULL);
-	//	HDC hdcMem = CreateCompatibleDC(hdcScreen);
-	//	HBITMAP hBmp = CreateCompatibleBitmap(hdcScreen, 16, 16);
-	//	HBITMAP hBmpOld = (HBITMAP)SelectObject(hdcMem, hBmp);
+	//todo:有没有其它方式优化？
+	SHGetFileInfoW(
+		L"D:\\Tools",
+		FILE_ATTRIBUTE_DIRECTORY,
+		&sfi,
+		sizeof(sfi),
+		SHGFI_ICON | SHGSI_SMALLICON | SHGFI_OPENICON
+	);
+	nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
+	DestroyIcon(sfi.hIcon);
+	/*SHSTOCKICONINFO sii{};
+	sii.cbSize = sizeof(sii);
 
-	//	// 2. 填充全透明背景（关键：让图标无任何像素）
-	//	// 设置透明背景色（RGB(255,255,255)，配合ILC_MASK实现全透）
-	//	SetBkColor(hdcMem, RGB(255, 255, 255));
-	//	RECT rcIcon = { 0,0,16,16 };
-	//	FillRect(hdcMem, &rcIcon, (HBRUSH)GetStockObject(WHITE_BRUSH));
-
-	//	// 3. 从位图创建空图标
-	//	ICONINFO ii = { 0 };
-	//	ii.fIcon = TRUE; // 创建图标（非光标）
-	//	ii.hbmColor = hBmp;
-	//	ii.hbmMask = hBmp; // 掩码位图和颜色位图一致，实现全透
-	//	hEmptyIcon = CreateIconIndirect(&ii);
-
-	//	// 4. 释放临时资源
-	//	SelectObject(hdcMem, hBmpOld);
-	//	DeleteObject(hBmp);
-	//	DeleteDC(hdcMem);
-	//	ReleaseDC(NULL, hdcScreen);
-	//} while (FALSE);
-
-	//if (hEmptyIcon == NULL) {
-	//	ImageList_Destroy(m_hImageList);
-	//	m_hImageList = NULL;
-	//	return FALSE;
-	//}
-
-	//// ========== 替换原有图标：只添加空图标 ==========
-	//// 索引0：空图标（文件夹原本的索引，现在用空图标）
-	//int nEmptyIconIndex = ImageList_AddIcon(m_hImageList, hEmptyIcon);
-	//// 索引1：空图标（文件原本的索引，也用空图标）
-	//ImageList_AddIcon(m_hImageList, hEmptyIcon);
-	//DestroyIcon(hEmptyIcon); // 用完销毁临时图标
-
-	
+	if (SHGetStockIconInfo(SIID_FOLDEROPEN,
+		SHGSI_ICON | SHGSI_SMALLICON,
+		&sii) != S_OK)
+	{
+		return FALSE;
+	}
+	nFolderIconIndex = ImageList_AddIcon(m_hImageList, sii.hIcon);
+	DestroyIcon(sii.hIcon);*/
 
 	return TRUE;
 }
@@ -642,6 +622,18 @@ void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 {
 	// 清空列表
 	ListView_DeleteAllItems(hList);
+	if (parent_id != -1) // 不是根目录的时候，显示“返回上一级”
+	{
+		LVITEMW lvi = { 0 };
+		lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;
+		lvi.iItem = 0; 
+		lvi.pszText = const_cast<WCHAR*>(L"返回上一级..."); 
+		lvi.iImage = 2; 
+		lvi.lParam = ID_BACK_TO_PARENT; // 绑定专属ID，用于识别点击
+		lvi.iIndent = 1; // 无缩进（根级显示）
+		//lviBack.iSubItem = 0;
+		ListView_InsertItem(hList, &lvi);
+	}
 
 	// 遍历自定义数据，加载对应节点
 	for (unsigned int i = 0; i < g_nNodeCount; i++)
@@ -766,21 +758,43 @@ void CListViewMgr::EnterListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARA
 		{
 			return;
 		}
-		//todo:看看这里层级会不会变化？其实这里拿到的就是nID了
-		ItemNode* node = FindVirtualFoldNode(lvItem.lParam);
-		if (node && node->bIsFolder)
+
+		if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的事“返回上一级”
 		{
-			// 进入文件夹：更新当前父节点，重新加载
-			m_nLeftCurrentParent = node->nID;
-			LoadVirtualFolder(m_hLeftListView, m_nLeftCurrentParent);
+			std::optional<signed int> nParentId;
+			for (unsigned int i = 0; i < g_nNodeCount; i++)
+			{
+				ItemNode* node = &g_szTestNode[i];
+				if (node->nID == m_nLeftCurrentParent)
+				{
+					nParentId = node->nParentId;
+					m_nLeftCurrentParent = node->nParentId;
+					break;
+				}
+			}
+			if (!nParentId.has_value())
+			{
+				return;
+			}
+			LoadVirtualFolder(m_hLeftListView, nParentId.value());
 		}
-		else if (node && !node->bIsFolder)
+		else
 		{
-			// 点击数据项：显示自定义数据
-			WCHAR msg[512];
-			wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
-				node->szName, node->db_id, node->szDesc);
-			MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
+			ItemNode* node = FindVirtualFoldNode(lvItem.lParam);
+			if (node && node->bIsFolder)
+			{
+				// 进入文件夹：更新当前父节点，重新加载
+				m_nLeftCurrentParent = node->nID;
+				LoadVirtualFolder(m_hLeftListView, m_nLeftCurrentParent);
+			}
+			else if (node && !node->bIsFolder)
+			{
+				// 点击数据项：显示自定义数据
+				WCHAR msg[512];
+				wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
+					node->szName, node->db_id, node->szDesc);
+				MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
+			}
 		}
 	}
 }

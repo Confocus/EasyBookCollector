@@ -134,6 +134,6 @@ private:
 	unsigned int m_nInitMainWndWidth;
 	unsigned int m_nLastSplitterX;
 	const unsigned int m_nInitSplitterWidth;
-	int m_nLeftCurrentParent;//ListView的Folder的父节点
+	signed int m_nLeftCurrentParent;//ListView的Folder的父节点
 };
 
