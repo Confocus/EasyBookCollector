@@ -99,7 +99,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	// 处理ListView双击（核心：进入虚拟文件夹）
 	case WM_NOTIFY: 
 	{
-		g_ListViewMgr.EnterListViewFolder( hWnd,  msg,  wParam,  lParam);
+		g_ListViewMgr.VisitListViewFolder( hWnd,  msg,  wParam,  lParam);
 		
 		// 右面板双击
 		/*if (pNMHDR->hwndFrom == g_hRightListView && pNMHDR->code == NM_DBLCLK) 

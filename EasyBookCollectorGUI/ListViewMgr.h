@@ -93,7 +93,7 @@ public:
 	* @param
 	* @return
 	*************************************************************************/
-	void EnterListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	void VisitListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 private:
 	CListViewMgr(const CListViewMgr& other);
 	CListViewMgr& operator=(const CListViewMgr& other);
@@ -113,6 +113,7 @@ private:
 	// 3. 初始化ListView的函数（给4个ListView都调用）
 	void InitSingleListView(HWND hListView);
 	
+	void VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, HWND hListView);
 private:
 	HIMAGELIST m_hImageList;
 	BOOL m_bInit;
