@@ -61,7 +61,8 @@ CListViewMgr::CListViewMgr():
 	m_nInitSplitterWidth(10),
 	m_nCurrentVerticalSplitterX(0),
 	m_nCurrentHorizontalSplitterY(0),
-	m_nLeftCurrentParent(-1)
+	m_nLeftCurrentParent(-1),
+	m_bIsBorderDragged(FALSE)
 {
 }
 
@@ -80,7 +81,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	m_nInitListViewWidth = (rcClient.right - rcClient.left - m_nInitSplitterWidth) / 2;
 	m_nInitSplitterX = m_nInitListViewWidth;
 	m_nCurrentVerticalSplitterX = m_nInitSplitterX;
-	m_nCurrentHorizontalSplitterY = (m_nInitListViewHeight - m_nInitSplitterWidth) / 2 + m_nInitSplitterWidth;
+	m_nCurrentHorizontalSplitterY = (m_nInitListViewHeight - m_nInitSplitterWidth) / 2;// + m_nInitSplitterWidth
 	m_nLastSplitterX = m_nInitListViewWidth;
 	// 创建拆分条
 	//注意，这里的CreateWindows时输入的坐标会被WM_SIZE是MoveWindow的坐标覆盖掉
@@ -110,6 +111,56 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	return TRUE;
 }
 
+VOID CListViewMgr::AdjustDoubleListView(HWND hWnd, unsigned int nMainWndWidth, unsigned int nCurrentVerticalSplitterX, unsigned int nListViewHeight, unsigned int nSplitterWidth)//
+{
+	RECT rcClient;
+	GetClientRect(hWnd, &rcClient);
+
+	m_nLastSplitterX = nCurrentVerticalSplitterX;
+	// 调整左面板尺寸
+	SetWindowPos(m_hLeftListView, NULL,
+		0,
+		0,
+		nCurrentVerticalSplitterX,
+		nListViewHeight,
+		SWP_NOZORDER | SWP_NOACTIVATE);
+
+	// 调整分隔条尺寸
+	SetWindowPos(m_hVerticalSplitter, NULL,
+		nCurrentVerticalSplitterX,
+		0,
+		nSplitterWidth,
+		nListViewHeight,
+		SWP_NOZORDER | SWP_NOACTIVATE);
+
+	// 调整右面板尺寸
+	SetWindowPos(m_hRightListView, NULL,
+		nCurrentVerticalSplitterX + nSplitterWidth,
+		0,
+		nMainWndWidth - nCurrentVerticalSplitterX - nSplitterWidth,//rcClient.right - m_nCurrentSplitterX - m_nInitSplitterWidth,
+		nListViewHeight,
+		SWP_NOZORDER | SWP_NOACTIVATE);
+
+	//不刷新右侧窗口，会有拖拽的痕迹
+	RECT rcInvalid = {
+		nCurrentVerticalSplitterX + nSplitterWidth, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
+		0,                                 // 上边界：顶部
+		//rcClient.right会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
+		nCurrentVerticalSplitterX + 2 * nSplitterWidth, // 右边界：取新旧X的最大值+拆分条宽度（5）
+		nListViewHeight                    // 下边界：底部
+	};
+
+	//不加Invalidate和Update就会有多余的一些颜色溢出Splitter
+	//但是加上之后会闪烁，第三格参数改为FALSE就好了
+	InvalidateRect(hWnd, &rcInvalid, FALSE);
+	UpdateWindow(hWnd); // 立即刷新，避免延迟
+}
+
+VOID CListViewMgr::AdjustQuadListView()
+{
+
+}
+
 BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 {
 	// 获取父窗口客户区尺寸
@@ -121,43 +172,52 @@ BOOL CListViewMgr::DragSplitterAndRefreshAllListView(HWND hWnd)
 	if (m_PanelMode == PANEL_MODE_DOUBLE)
 	{
 		m_nLastSplitterX = m_nCurrentVerticalSplitterX;
+		if (IsSplitterDragged())//如果是因为拖拽Splitter导致刷新重绘
+		{
+			AdjustDoubleListView(hWnd, rcClient.right, m_nCurrentVerticalSplitterX, m_nInitListViewHeight, m_nInitSplitterWidth);
+		}
+		else if (IsBorderDragged())
+		{
+			m_nCurrentVerticalSplitterX = static_cast<float>(rcClient.right) / static_cast<float>(m_nInitMainWndWidth) * m_nInitSplitterX;
+			AdjustDoubleListView(hWnd, rcClient.right, m_nCurrentVerticalSplitterX, rcClient.bottom, m_nInitSplitterWidth);
+		}
 		// 调整左面板尺寸
-		SetWindowPos(m_hLeftListView, NULL,
-			0, 
-			0, 
-			m_nCurrentVerticalSplitterX, 
-			m_nInitListViewHeight,
-			SWP_NOZORDER | SWP_NOACTIVATE);
+		//SetWindowPos(m_hLeftListView, NULL,
+		//	0, 
+		//	0, 
+		//	m_nCurrentVerticalSplitterX, 
+		//	m_nInitListViewHeight,
+		//	SWP_NOZORDER | SWP_NOACTIVATE);
 
-		// 调整分隔条尺寸
-		SetWindowPos(m_hVerticalSplitter, NULL,
-			m_nCurrentVerticalSplitterX, 
-			0, 
-			m_nInitSplitterWidth,
-			m_nInitListViewHeight,
-			SWP_NOZORDER | SWP_NOACTIVATE);
+		//// 调整分隔条尺寸
+		//SetWindowPos(m_hVerticalSplitter, NULL,
+		//	m_nCurrentVerticalSplitterX, 
+		//	0, 
+		//	m_nInitSplitterWidth,
+		//	m_nInitListViewHeight,
+		//	SWP_NOZORDER | SWP_NOACTIVATE);
 
-		// 调整右面板尺寸
-		SetWindowPos(m_hRightListView, NULL,
-			m_nCurrentVerticalSplitterX + m_nInitSplitterWidth, 
-			0,
-			m_nInitListViewWidth - (m_nCurrentVerticalSplitterX - m_nInitSplitterX),//rcClient.right - m_nCurrentSplitterX - m_nInitSplitterWidth,
-			m_nInitListViewHeight,
-			SWP_NOZORDER | SWP_NOACTIVATE);
-		
-		//不刷新右侧窗口，会有拖拽的痕迹
-		RECT rcInvalid = {
-			m_nCurrentVerticalSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
-			0,                                 // 上边界：顶部
-			//rcClient.right会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
-			m_nCurrentVerticalSplitterX + 2 * m_nInitSplitterWidth, // 右边界：取新旧X的最大值+拆分条宽度（5）
-			rcClient.bottom                    // 下边界：底部
-		};
-		
-		//不加Invalidate和Update就会有多余的一些颜色溢出Splitter
-		//但是加上之后会闪烁，第三格参数改为FALSE就好了
-		InvalidateRect(hWnd, &rcInvalid, FALSE); 
-		UpdateWindow(hWnd); // 立即刷新，避免延迟
+		//// 调整右面板尺寸
+		//SetWindowPos(m_hRightListView, NULL,
+		//	m_nCurrentVerticalSplitterX + m_nInitSplitterWidth, 
+		//	0,//m_nInitListViewWidth - (m_nCurrentVerticalSplitterX - m_nInitSplitterX)
+		//	rcClient.right - m_nCurrentVerticalSplitterX - m_nInitSplitterWidth,//rcClient.right - m_nCurrentSplitterX - m_nInitSplitterWidth,
+		//	m_nInitListViewHeight,
+		//	SWP_NOZORDER | SWP_NOACTIVATE);
+		//
+		////不刷新右侧窗口，会有拖拽的痕迹
+		//RECT rcInvalid = {
+		//	m_nCurrentVerticalSplitterX + m_nInitSplitterWidth, // 左边界：取新旧X的最小值 + m_nInitSplitterWidth
+		//	0,                                 // 上边界：顶部
+		//	//rcClient.right会闪，改成m_nCurrentSplitterX + 2 * m_nInitSplitterWidth也会局部闪烁
+		//	m_nCurrentVerticalSplitterX + 2 * m_nInitSplitterWidth, // 右边界：取新旧X的最大值+拆分条宽度（5）
+		//	m_nInitListViewHeight                    // 下边界：底部rcClient.bottom
+		//};
+		//
+		////不加Invalidate和Update就会有多余的一些颜色溢出Splitter
+		////但是加上之后会闪烁，第三格参数改为FALSE就好了
+		//InvalidateRect(hWnd, &rcInvalid, FALSE); 
+		//UpdateWindow(hWnd); // 立即刷新，避免延迟
 
 	}
 	
@@ -271,6 +331,17 @@ BOOL CListViewMgr::PressSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	return TRUE;
 }
 
+BOOL CListViewMgr::ReleaseSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (IsSplitterDragged())
+	{
+		ReleaseCapture();
+		SetDraggingStopStatus();
+	}
+
+	return TRUE;
+}
+
 BOOL CListViewMgr::DragSplitterAndSendMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	// 获取鼠标当前位置（客户区坐标）
@@ -281,6 +352,7 @@ BOOL CListViewMgr::DragSplitterAndSendMessage(HWND hWnd, UINT msg, WPARAM wParam
 	//g_nSplitterPos = max(nMinPos, min(pt.x, nMaxPos));
 	/*RECT rcSplitter;
 	GetWindowRect(m_hVerticalSplitter, &rcSplitter);*/
+
 	//如果是拖拽的垂直Splitter只更新x
 	if (DRAG_TYPE_VIRTICAL == m_eDraggingType)
 	{
@@ -296,6 +368,10 @@ BOOL CListViewMgr::DragSplitterAndSendMessage(HWND hWnd, UINT msg, WPARAM wParam
 		SendMessage(hWnd, WM_SIZE, 0, 0);
 		SetCursor(LoadCursor(NULL, IDC_SIZENS));
 	}
+	else if (m_bIsBorderDragged)
+	{
+		SendMessage(hWnd, WM_SIZE, 0, 0);
+	}
 	
 	return TRUE;
 }
@@ -305,9 +381,19 @@ BOOL CListViewMgr::IsInitStatus()
 	return m_bInit;
 }
 
-BOOL CListViewMgr::IsDraggingStatus()
+BOOL CListViewMgr::IsSplitterDragged()
 {
 	return m_eDraggingType != DRAG_TYPE_STOP;
+}
+
+BOOL CListViewMgr::IsBorderDragged()
+{
+	return m_bIsBorderDragged;
+}
+
+VOID CListViewMgr::SetBorderDraggedStatus(BOOL bStatus)
+{
+	m_bIsBorderDragged = bStatus;
 }
 
 VOID CListViewMgr::SetDraggingStopStatus()

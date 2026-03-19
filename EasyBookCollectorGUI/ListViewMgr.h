@@ -55,6 +55,9 @@ public:
 	*************************************************************************/
 	BOOL PressSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+	BOOL ReleaseSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+
 	/**************************************************************************
 	* @brief 拖动Splitter并通知WM_SIZE进行重绘
 	* @param
@@ -74,7 +77,16 @@ public:
 	* @param
 	* @return
 	*************************************************************************/
-	BOOL IsDraggingStatus();
+	BOOL IsSplitterDragged();
+
+	/**************************************************************************
+	* @brief 重绘ListView时，判断主窗口的边框是否正在被拖拽
+	* @param
+	* @return
+	*************************************************************************/
+	BOOL IsBorderDragged();
+
+	VOID SetBorderDraggedStatus(BOOL);
 
 	VOID SetDraggingStopStatus();
 
@@ -97,6 +109,10 @@ public:
 private:
 	CListViewMgr(const CListViewMgr& other);
 	CListViewMgr& operator=(const CListViewMgr& other);
+
+	VOID AdjustDoubleListView(HWND hWnd, unsigned int nMainWndWidth, unsigned int nCurrentVerticalSplitterX, unsigned int nListViewHeight, unsigned int nSplitterWidth);
+
+	VOID AdjustQuadListView();
 
 	/**************************************************************************
 	* @brief 初始化图标列表（文件夹+文件图标）
@@ -136,5 +152,6 @@ private:
 	unsigned int m_nLastSplitterX;
 	const unsigned int m_nInitSplitterWidth;
 	signed int m_nLeftCurrentParent;//ListView的Folder的父节点
+	BOOL m_bIsBorderDragged;
 };
 

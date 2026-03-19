@@ -60,13 +60,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		g_ListViewMgr.InitDoubleListViewAndLoadData(hWnd);
 		break;
 	}
-
+	case WM_SIZING:
+	{
+		// 用户开始拖动边框调整大小
+		g_ListViewMgr.SetBorderDraggedStatus(TRUE);
+		break;
+	}
+	case WM_EXITSIZEMOVE:
+	{
+		// 用户结束了拖动（鼠标松开或按回车）
+		g_ListViewMgr.SetBorderDraggedStatus(FALSE);
+		break;
+	}
 	case WM_SIZE: 
 	{
-		if (g_ListViewMgr.IsDraggingStatus())
-		{
-			g_ListViewMgr.DragSplitterAndRefreshAllListView(hWnd);
-		}
+		g_ListViewMgr.DragSplitterAndRefreshAllListView(hWnd);
 		break;
 	}
 
@@ -76,50 +84,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		g_ListViewMgr.PressSplitter(hWnd, msg, wParam, lParam);
 		break;
 	}
-	
+	case WM_LBUTTONUP:
+	{
+		g_ListViewMgr.ReleaseSplitter(hWnd, msg, wParam, lParam);
+		break;
+	}
 	case WM_MOUSEMOVE: 
 	{
-		if (g_ListViewMgr.IsDraggingStatus())
-		{
-			g_ListViewMgr.DragSplitterAndSendMessage(hWnd, msg, wParam, lParam);
-		}
+		g_ListViewMgr.DragSplitterAndSendMessage(hWnd, msg, wParam, lParam);
 		break;
 	}
-	case WM_LBUTTONUP: 
+	case WM_NOTIFY: // 处理ListView双击（核心：进入虚拟文件夹）
 	{
-		if (g_ListViewMgr.IsDraggingStatus())
-		{
-			ReleaseCapture();
-			g_ListViewMgr.SetDraggingStopStatus();
-			//g_ListViewMgr.RecoverRedrawListView();
-		}
-		break;
-	}
-
-	// 处理ListView双击（核心：进入虚拟文件夹）
-	case WM_NOTIFY: 
-	{
-		g_ListViewMgr.VisitListViewFolder( hWnd,  msg,  wParam,  lParam);
-		
-		// 右面板双击
-		/*if (pNMHDR->hwndFrom == g_hRightListView && pNMHDR->code == NM_DBLCLK) 
-		{
-			LPNMITEMACTIVATE pNMItem = (LPNMITEMACTIVATE)lParam;
-			int node_id = (int)pNMItem->iItem != -1 ? ListView_GetItem(g_hRightListView, pNMItem->iItem) : -1;
-			ItemNode* node = FindVirtualFoldNode(node_id);
-			if (node && node->bIsFolder) 
-			{
-				g_right_current_parent = node->nID;
-				LoadVirtualFolder(g_hRightListView, g_right_current_parent);
-			}
-			else if (node && !node->bIsFolder) 
-			{
-				WCHAR msg[512];
-				wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
-					node->szName, node->db_id, node->szDesc);
-				MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
-			}
-		}*/
+		g_ListViewMgr.VisitListViewFolder(hWnd, msg, wParam, lParam);
 		break;
 	}
 
@@ -129,6 +106,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		// 原有Backspace返回上一级逻辑不变...
 			// F12切换双/四面板
 		if (wParam == VK_F11) {
+			//todo:如何在切换时仍保留当前的访问状态
 			g_ListViewMgr.TogglePanelMode(hWnd);
 			break;
 		}
