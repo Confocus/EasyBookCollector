@@ -112,7 +112,12 @@ private:
 
 	VOID AdjustDoubleListView(HWND hWnd, unsigned int nMainWndWidth, unsigned int nCurrentVerticalSplitterX, unsigned int nListViewHeight, unsigned int nSplitterWidth);
 
-	VOID AdjustQuadListView();
+	VOID AdjustQuadListView(HWND hWnd,
+		unsigned int nMainWndWidth,
+		unsigned int nCurrentVerticalSplitterX,
+		unsigned int nListViewHeight,
+		unsigned int nSplitterWidth,
+		unsigned int nCurrentHorizontalSplitterY);
 
 	/**************************************************************************
 	* @brief 初始化图标列表（文件夹+文件图标）
@@ -146,6 +151,7 @@ private:
 	unsigned int m_nCurrentVerticalSplitterX;	//拖动Splitter时的位置
 	unsigned int m_nCurrentHorizontalSplitterY;	//拖动Splitter时的位置
 	unsigned int m_nInitSplitterX;           // 拆分条位置
+	unsigned int m_nInitSplitterY;           // 拆分条位置
 	unsigned int m_nInitListViewHeight;//初始展示的双ListView时的高度
 	unsigned int m_nInitListViewWidth;//初始展示的双ListView时的宽
 	unsigned int m_nInitMainWndWidth;
