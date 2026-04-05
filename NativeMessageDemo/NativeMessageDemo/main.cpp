@@ -1,181 +1,309 @@
+ï»¿//#include <winsock2.h>
+//#include <windows.h>
+//#include <process.h>
 //#include <iostream>
-//#include <fstream>
-//#include <vector>
 //#include <string>
-//#include <windows.h>   // Windows ÏÂĞèÒª
+//#include <sstream>
+//
+//#pragma comment(lib, "ws2_32.lib")
+//#pragma comment(lib, "crypt32.lib")  // Windows åŠ å¯†åº“ï¼ˆè‡ªå¸¦ï¼‰
+//
+//#define PORT 8899
+//#define BUF_SIZE 4096
 //
 //using namespace std;
 //
-//// ¶ÁÈ¡ä¯ÀÀÆ÷·¢À´µÄ JSON ÏûÏ¢
-//string readMessage()
-//{
-//	uint32_t length = 0;
-//	std::ofstream log("..\\native_host.log", std::ios::app);
+//// ============================
+//// Windows åŸç”Ÿ SHA1
+//// ============================
+//string Sha1(const string& input) {
+//	HCRYPTPROV hProv = 0;
+//	HCRYPTHASH hHash = 0;
+//	BYTE hash[20];
+//	DWORD hashLen = 20;
 //
-//	// ¶Á 4 ×Ö½Ú³¤¶È
-//	if (!cin.read(reinterpret_cast<char*>(&length), 4))
-//		return "";
+//	CryptAcquireContextA(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT);
+//	CryptCreateHash(hProv, CALG_SHA1, 0, 0, &hHash);
+//	CryptHashData(hHash, (BYTE*)input.c_str(), input.size(), 0);
+//	CryptGetHashParam(hHash, HP_HASHVAL, hash, &hashLen, 0);
 //
-//	log << length << std::endl;
-//	vector<char> buffer(length);
+//	CryptDestroyHash(hHash);
+//	CryptReleaseContext(hProv, 0);
 //
-//	// ¶Á JSON ÄÚÈİ
-//	cin.read(buffer.data(), length);
-//	log << string(buffer.begin(), buffer.end()) << std::endl;
-//
-//	return string(buffer.begin(), buffer.end());
+//	return string((char*)hash, hashLen);
 //}
 //
-//// Ïòä¯ÀÀÆ÷·¢ËÍ JSON ÏûÏ¢
-//void sendMessage(const string& msg)
-//{
-//	uint32_t length = msg.size();
+//// ============================
+//// Windows åŸç”Ÿ Base64 ç¼–ç 
+//// ============================
+//string Base64Encode(const string& binary) {
+//	DWORD len = 0;
+//	CryptBinaryToStringA((BYTE*)binary.c_str(), binary.size(),
+//		CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, NULL, &len);
 //
-//	// Ğ´Èë³¤¶È£¨4 ×Ö½Ú Little Endian£©
-//	cout.write(reinterpret_cast<char*>(&length), 4);
+//	string out;
+//	out.resize(len);
+//	CryptBinaryToStringA((BYTE*)binary.c_str(), binary.size(),
+//		CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, &out[0], &len);
 //
-//	// Ğ´Èë JSON Êı¾İ
-//	cout.write(msg.c_str(), length);
-//
-//	cout.flush();
+//	return out;
 //}
 //
-//int main()
-//{
-//	ios_base::sync_with_stdio(false);
+//// ============================
+//// WebSocket æ¡æ‰‹ï¼ˆå…³é”®ï¼‰
+//// ============================
+//string WebSocketHandshake(const string& request) {
+//	size_t keyStart = request.find("Sec-WebSocket-Key: ");
+//	if (keyStart == string::npos) return "";
 //
-//	std::ofstream log("..\\native_host.log", std::ios::app);
-//	log << "start success: " << std::endl;
+//	keyStart += 19;
+//	size_t keyEnd = request.find("\r\n", keyStart);
+//	string key = request.substr(keyStart, keyEnd - keyStart);
 //
-//	while (true)
-//	{
-//		string msg = readMessage();
-//		if (msg.empty())
-//			break;
+//	// WebSocket å›ºå®š GUID
+//	string guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+//	string accept = Base64Encode(Sha1(key + guid));
 //
-//		cerr << "Received from browser: " << msg << endl;
+//	// å“åº”å¤´
+//	ostringstream oss;
+//	oss << "HTTP/1.1 101 Switching Protocols\r\n"
+//		<< "Upgrade: websocket\r\n"
+//		<< "Connection: Upgrade\r\n"
+//		<< "Sec-WebSocket-Accept: " << accept << "\r\n\r\n";
 //
-//		// ÕâÀï¿ÉÒÔ½âÎö JSON£¨Èç nlohmann/json£©
-//		// ¼òµ¥ÑİÊ¾Ö±½Ó·µ»ØÏûÏ¢
+//	return oss.str();
+//}
 //
-//		string reply =
-//			R"({"status":"ok","reply":"Hello from C++ Native Host"})";
+//// ============================
+//// æ¥æ”¶ WebSocket æ¶ˆæ¯ï¼ˆè§£åŒ…ï¼‰
+//// ============================
+//string WebSocketRecv(SOCKET sock) {
+//	char buf[BUF_SIZE];
+//	int recvLen = recv(sock, buf, BUF_SIZE, 0);
+//	if (recvLen <= 0) return "";
 //
-//		sendMessage(reply);
+//	BYTE* data = (BYTE*)buf;
+//	int payloadLen = data[1] & 0x7F;
+//	int maskOffset = 2;
+//
+//	if (payloadLen == 126) { maskOffset = 4; }
+//	if (payloadLen == 127) { maskOffset = 10; }
+//
+//	BYTE mask[4];
+//	memcpy(mask, data + maskOffset, 4);
+//	char* payload = (char*)(data + maskOffset + 4);
+//
+//	for (int i = 0; i < payloadLen; i++) {
+//		payload[i] ^= mask[i % 4];
 //	}
 //
+//	return string(payload, payloadLen);
+//}
+//
+//// ============================
+//// å‘é€ WebSocket æ¶ˆæ¯ï¼ˆæ‰“åŒ…ï¼‰
+//// ============================
+//void WebSocketSend(SOCKET sock, const string& msg) {
+//	char frame[BUF_SIZE];
+//	frame[0] = 0x81;
+//	int len = msg.size();
+//
+//	if (len <= 125) {
+//		frame[1] = len;
+//		memcpy(frame + 2, msg.c_str(), len);
+//		send(sock, frame, 2 + len, 0);
+//	}
+//}
+//
+//// ============================
+//// å®¢æˆ·ç«¯çº¿ç¨‹
+//// ============================
+//unsigned __stdcall ClientThread(void* param) {
+//	SOCKET sock = (SOCKET)param;
+//	char buf[BUF_SIZE];
+//
+//	// æ¡æ‰‹
+//	recv(sock, buf, BUF_SIZE, 0);
+//	string response = WebSocketHandshake(buf);
+//	send(sock, response.c_str(), response.size(), 0);
+//
+//	// å¾ªç¯æ”¶å‘æ¶ˆæ¯
+//	while (true) {
+//		string msg = WebSocketRecv(sock);
+//		if (msg.empty()) break;
+//
+//		cout << "[Firefox] " << msg << endl;
+//
+//		// å›å¤æ’ä»¶
+//		WebSocketSend(sock, "å®ˆæŠ¤è¿›ç¨‹å·²æ”¶åˆ°ï¼š" + msg);
+//	}
+//
+//	closesocket(sock);
+//	return 0;
+//}
+//
+//// ============================
+//// å®ˆæŠ¤è¿›ç¨‹ä¸»é€»è¾‘
+//// ============================
+//void RunDaemon() {
+//	WSADATA wsa;
+//	WSAStartup(MAKEWORD(2, 2), &wsa);
+//
+//	SOCKET server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+//	sockaddr_in addr = { AF_INET, htons(PORT), INADDR_ANY };
+//
+//	bind(server, (sockaddr*)&addr, sizeof(addr));
+//	listen(server, 5);
+//
+//	cout << "å®ˆæŠ¤è¿›ç¨‹å·²å¯åŠ¨ï¼ŒWebSocket ç«¯å£ï¼š" << PORT << endl;
+//
+//	while (true) {
+//		SOCKET client = accept(server, NULL, NULL);
+//		_beginthreadex(NULL, 0, ClientThread, (void*)client, 0, NULL);
+//	}
+//}
+//
+//// ============================
+//// ä¸»å…¥å£
+//// ============================
+//int main() {
+//	// éšè—æ§åˆ¶å°ï¼ˆå‘å¸ƒç”¨ï¼‰
+//	//HWND hwnd = GetConsoleWindow();
+//	//ShowWindow(hwnd, SW_HIDE);
+//
+//	RunDaemon();
 //	return 0;
 //}
 
 
+
+
+#include <winsock.h>
+#include <windows.h>
+#include <process.h>
 #include <iostream>
-#include <fstream>
-#include <vector>
 #include <string>
-#include <cstdint>
-#include "../../public/json-develop/single_include/nlohmann/json.hpp"  // ÒÀÀµ£ºnlohmann/json ¿â£¨´¦Àí JSON ½âÎö/Éú³É£©
-#include "../../public/PipeMgr.h"
-#include "../../public/PipeMgr.cpp"
 
-// ÒıÈë JSON ¿â£¨nlohmann/json£¬¿É´Ó https://github.com/nlohmann/json ÏÂÔØ£¬Ö±½Ó°üº¬Í·ÎÄ¼ş¼´¿É£©
-using json = nlohmann::json;
+#pragma comment(lib, "ws2_32.lib")
 
-// º¯Êı£º´Ó stdin ¶ÁÈ¡ Native Messaging ÏûÏ¢
-json readNativeMessage() {
-	// 1. ÏÈ¶ÁÈ¡ 4 ×Ö½ÚÎŞ·ûºÅÕûÊı£¨Ğ¡¶ËĞò£©£¬»ñÈ¡ JSON ×Ö·û´®³¤¶È
-	uint32_t messageLength = 0;
-	std::cin.read(reinterpret_cast<char*>(&messageLength), sizeof(messageLength));
+#define PORT 8899
+#define BUF_SIZE 4096
 
-	// 2. ¶ÁÈ¡¶ÔÓ¦³¤¶ÈµÄ JSON ×Ö·û´®×Ö½ÚÊı¾İ
-	std::vector<char> messageBuffer(messageLength);
-	std::cin.read(messageBuffer.data(), messageLength);
+using namespace std;
 
-	// 3. ½âÎöÎª JSON ¶ÔÏó²¢·µ»Ø
-	std::string jsonString(messageBuffer.begin(), messageBuffer.end());
-	return json::parse(jsonString);
-}
+unsigned __stdcall ClientThread(void* param) {
+	SOCKET sock = (SOCKET)param;
+	char buf[BUF_SIZE];
 
-// º¯Êı£ºÏò stdout Ğ´Èë Native Messaging ÏìÓ¦
-void sendNativeMessage(const json& response) {
-	// 1. Éú³É JSON ×Ö·û´®£¨UTF-8 ±àÂë£©
-	std::string jsonString = response.dump();
+	while (true) {
+		int len = recv(sock, buf, BUF_SIZE, 0);
+		if (len <= 0) break;
 
-	// 2. »ñÈ¡ JSON ×Ö·û´®µÄ×Ö½Ú³¤¶È£¬·â×°Îª 4 ×Ö½ÚÎŞ·ûºÅÕûÊı£¨Ğ¡¶ËĞò£©
-	uint32_t messageLength = static_cast<uint32_t>(jsonString.size());
+		buf[len] = 0;
+		string msg = buf;
+		cout << "[Firefox] " << msg << endl;
 
-	// 3. ÏÈĞ´Èë 4 ×Ö½Ú³¤¶È£¨±ØĞëÏÈĞ´£¬ÕâÊÇĞ­ÒéÒªÇó£©
-	std::cout.write(reinterpret_cast<const char*>(&messageLength), sizeof(messageLength));
-
-	// 4. ÔÙĞ´Èë JSON ×Ö·û´®×Ö½ÚÊı¾İ
-	std::cout.write(jsonString.data(), messageLength);
-
-	// 5. Ë¢ĞÂ stdout£¬È·±£Êı¾İÁ¢¼´·¢ËÍ£¨¹Ø¼ü£¬±ÜÃâ»º´æ£©
-	std::cout.flush();
-}
-//todo:¼ÓÉÏMutex·ÀÖ¹Ã¿´ÎË«»÷¶¼µ÷ÆğÒ»¸öexe
-// todo:Ã¿´ÎÍË³öÊ±¶Ï¿ªstd::outÊ±»á±ÀÀ£
-// Ö÷º¯Êı£º´¦ÀíÀ©Õ¹ÏûÏ¢£¬·µ»ØÏìÓ¦
-int main2() {
-	try {
-		// Ñ­»·¶ÁÈ¡À©Õ¹ÏûÏ¢£¨Native Messaging ËŞÖ÷³ÌĞòÍ¨³£³ÖĞøÔËĞĞ£¬´¦Àí¶àÌõÏûÏ¢£©
-		while (true) {
-			// 1. ¶ÁÈ¡À©Õ¹·¢ËÍµÄÏûÏ¢
-			json request = readNativeMessage();
-			try {
-				std::string dumpStr = request.dump(); // µ¥¶ÀÌáÈ¡dump½á¹û£¬±ãÓÚÅÅ²é
-				//ÕâÀïÖ®Ç°ÓÃÁËjsºÍexe¿Í»§¶Ë½¨Á¢ÁËÍ¨ĞÅÁ¬½Ó£¬ÊÇ²»ÊÇµ±Ê±ÊÇ»ùÓÚ±ê×¼ÊäÈëÊä³öµÄÍ¨ĞÅÁ¬½Ó£¿ÄÇÃ´ÎÒÊÇ²»ÊÇ¾Í²»ÄÜÔÙµ÷ÓÃ
-				//std::cout << "¡¾C++ exe¡¿½ÓÊÕµ½À©Õ¹Êı¾İ£º" << dumpStr << std::endl;
-			}
-			catch (const std::exception& e) {
-				// ²¶»ñ±ê×¼Òì³££¬´òÓ¡¾ßÌå´íÎóĞÅÏ¢
-				std::cerr << "¡¾±ÀÀ£Ô­Òò¡¿dump()Å×³öÒì³££º" << e.what() << std::endl;
-			}
-			catch (...) {
-				// ²¶»ñËùÓĞ·Ç±ê×¼Òì³£
-				std::cerr << "¡¾±ÀÀ£Ô­Òò¡¿dump()Å×³öÎ´ÖªÒì³££¡" << std::endl;
-			}
-			// 2. ´¦ÀíÊı¾İ£¨ÄãµÄÒµÎñÂß¼­£¬Ê¾Àı£ºÌáÈ¡×Ö¶Î£¬Ğ´ÈëÈÕÖ¾ÎÄ¼ş£©
-			/*std::string targetTag = request.value("targetTag", "Î´ÖªÔªËØ");
-			std::string pageUrl = request.value("pageUrl", "Î´ÖªURL");
-			std::string logContent = "[" + std::string(__TIME__) + "]ÔªËØ±êÇ©£º" + targetTag + "£¬ÍøÒ³URL£º" + pageUrl + "\n";*/
-
-			//// Ğ´Èë±¾µØÈÕÖ¾ÎÄ¼ş£¨ÑéÖ¤Êı¾İÊÇ·ñ½ÓÊÕ³É¹¦£©
-			//std::ofstream logFile("dblclick_log.txt", std::ios::app);
-			//if (logFile.is_open()) {
-			//	logFile << logContent;
-			//	logFile.close();
-			//}
-
-			 //3. ¹¹ÔìÏìÓ¦Êı¾İ£¨Òª·µ»Ø¸øÀ©Õ¹µÄÄÚÈİ£©
-			/*json response;
-			response["status"] = "success";
-			response["message"] = "C++ exe ÒÑ³É¹¦´¦ÀíÊı¾İ";
-			response["processedData"] = {
-				{"targetTag", targetTag},
-				{"pageUrl", pageUrl},
-				{"logPath", "dblclick_log.txt"}
-			};*/
-
-			// //4. ÏòÀ©Õ¹·¢ËÍÏìÓ¦£¨°´ Native Messaging Ğ­Òé·â×°£©
-			//sendNativeMessage(response);
-		}
-	}
-	catch (const std::exception& e) {
-		// Òì³£´¦Àí£¬ÏòÀ©Õ¹·µ»Ø´íÎóĞÅÏ¢
-		json errorResponse;
-		errorResponse["status"] = "error";
-		errorResponse["message"] = "C++ exe ´¦ÀíÊ§°Ü£º" + std::string(e.what());
-		sendNativeMessage(errorResponse);
-		return 1;
+		// å›å¤æ’ä»¶
+		string resp = "OK: " + msg;
+		send(sock, resp.c_str(), resp.size(), 0);
 	}
 
+	closesocket(sock);
 	return 0;
 }
 
-CPipeMgr::CPipeClient g_PipeClient;
+void RunDaemon() {
+	WSADATA wsa;
+	WSAStartup(MAKEWORD(2, 2), &wsa);
 
-int main()
-{
-	g_PipeClient.CreatePipeClient();
-	getchar();
+	SOCKET server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	sockaddr_in addr = { 0 };
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(PORT);
+	addr.sin_addr.s_addr = INADDR_ANY;
+
+	bind(server, (sockaddr*)&addr, sizeof(addr));
+	listen(server, 5);
+
+	cout << u8"å®ˆæŠ¤è¿›ç¨‹å·²å¯åŠ¨ï¼š127.0.0.1:" << PORT << endl;
+
+	while (true) {
+		SOCKET client = accept(server, NULL, NULL);
+		_beginthreadex(0, 0, ClientThread, (void*)client, 0, 0);
+	}
 }
+
+int main() {
+	SetConsoleOutputCP(CP_UTF8);
+	// è°ƒè¯•ç”¨ï¼šæ˜¾ç¤ºçª—å£
+	RunDaemon();
+
+	// å‘å¸ƒç”¨ï¼šéšè—çª—å£
+	//HWND hwnd = GetConsoleWindow();
+	//ShowWindow(hwnd, SW_HIDE);
+	//RunDaemon();
+	return 0;
+}
+//
+//#include <winsock2.h>
+//#include <windows.h>
+//#include <process.h>
+//#include <iostream>
+//#include <string>
+//
+//#pragma comment(lib, "ws2_32.lib")
+//
+//#define PORT 8899
+//#define BUF_SIZE 4096
+//
+//using namespace std;
+//
+//unsigned __stdcall ClientThread(void* param) {
+//	SOCKET sock = (SOCKET)param;
+//	char buf[BUF_SIZE];
+//
+//	while (true) {
+//		int len = recv(sock, buf, BUF_SIZE, 0);
+//		if (len <= 0) break;
+//
+//		// ç›´æ¥è¾“å‡ºåŸå§‹æ•°æ®çœ‹çœ‹æ˜¯ä»€ä¹ˆ
+//		buf[len] = 0;
+//		printf("åŸå§‹æ•°æ®: %s\n", buf);
+//
+//		// å›å¤æ’ä»¶
+//		string reply = "å·²æ”¶åˆ°: ";
+//		send(sock, reply.c_str(), reply.length(), 0);
+//	}
+//
+//	closesocket(sock);
+//	return 0;
+//}
+//
+//void RunDaemon() {
+//	WSADATA wsa;
+//	WSAStartup(MAKEWORD(2, 2), &wsa);
+//
+//	SOCKET server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+//
+//	sockaddr_in addr = { 0 };
+//	addr.sin_family = AF_INET;
+//	addr.sin_port = htons(PORT);
+//	addr.sin_addr.s_addr = INADDR_ANY;
+//
+//	bind(server, (sockaddr*)&addr, sizeof(addr));
+//	listen(server, 5);
+//
+//	printf("å®ˆæŠ¤è¿›ç¨‹å·²å¯åŠ¨ï¼Œç«¯å£ %d\n", PORT);
+//
+//	while (true) {
+//		SOCKET client = accept(server, NULL, NULL);
+//		_beginthreadex(0, 0, ClientThread, (void*)client, 0, 0);
+//	}
+//}
+//
+//int main() {
+//	// è®©æ§åˆ¶å°èƒ½æ˜¾ç¤ºUTF-8ä¸­æ–‡
+//	RunDaemon();
+//	return 0;
+//}
+

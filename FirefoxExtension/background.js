@@ -1,56 +1,18 @@
-// 创建右键菜单项 —— 仅在“标签页”上出现
-browser.menus.create({
-    id: "save-bookmark",
-    title: "保存此书",
-    contexts: ["tab"]
-});
+// 纯 HTTP POST 版本 —— 最简单、最稳定、最适合你
+function sendMessage(msg) {
+    // 直接发 POST 请求，没有任何多余代码
+    fetch("http://127.0.0.1:8899", {
+        method: "POST",
+        body: msg
+    })
+    .then(res => res.text())
+    .then(data => {
+        console.log("✅ 收到服务器回复：", data);
+    })
+    .catch(err => {
+        console.error("❌ 发送失败：", err);
+    });
+}
 
-const manifest = browser.runtime.getManifest();
-const supportedUrls = manifest.content_scripts[0].matches.map(pattern => {
-    // 去掉最后的 * 号，方便 startsWith 判断
-    return pattern.replace(/\*$/, "");
-});
-
-// 处理点击事件
-browser.menus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === "save-bookmark") {
-        const url = tab.url;
-        const isSupported = supportedUrls.some(prefix => url.startsWith(prefix));
-        console.log("你点击了 XXX，标签页：", tab);
-        if (isSupported) {
-            browser.tabs.sendMessage?.(tab.id, {
-                action: "save-bookmark"
-            }).
-                catch(err => {
-                    console.error("isSupported失败：", err);
-                });
-            console.log("准备执行browser.runtime.sendNativeMessage：", tab);
-            browser.runtime.sendNativeMessage("com.demo.native_host", // Host 名称
-                { action: "test" }).then(response => {
-                    console.log("Native 返回：", response);
-                }).
-                catch(err => {
-                    console.error("Native 连接失败：", err);
-                });
-
-        } else {
-            browser.notifications.create({
-                type: "basic",
-                //iconUrl: browser.runtime.getURL("icons/border-48.png"),
-                title: "提示",
-                message: "当前页面未被插件支持！"
-            });
-        }
-
-    }
-});
-
-
-browser.runtime.onMessage.addListener((msg, sender) => {
-    console.log("收到 content script 消息:", msg);
-    // 可以选择回复
-    return Promise.resolve({ status: "ok" });
-
-    // 如果你要发给 exe
-    // browser.runtime.sendNativeMessage("com.example.myexe", msg);
-});
+// 测试发送
+sendMessage("Hello 守护进程！");
