@@ -16,6 +16,7 @@
 //// ============================
 //// Windows 原生 SHA1
 //// ============================
+// 
 //string Sha1(const string& input) {
 //	HCRYPTPROV hProv = 0;
 //	HCRYPTHASH hHash = 0;
@@ -187,26 +188,72 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #define PORT 8899
-#define BUF_SIZE 4096
+#define BUF_SIZE 4096 * 2
 
 using namespace std;
 
+// 精准接收指定长度的数据
+string RecvExact(SOCKET sock, int exactSize) {
+	string data;
+	char buf[4096];
+	int need = exactSize;
+
+	while (need > 0) {
+		int r = recv(sock, buf, min(need, 4096), 0);
+		if (r <= 0) break;
+		data.append(buf, r);
+		need -= r;
+	}
+	return data;
+}
+
+string GetHttpBody(const string& data) {
+	size_t pos = data.find("\r\n\r\n");
+	if (pos == string::npos) return "";
+	return data.substr(pos + 4);
+}
+int g_expected_length = 0;
+int g_nBookmarkSize = 0;
 unsigned __stdcall ClientThread(void* param) {
 	SOCKET sock = (SOCKET)param;
-	char buf[BUF_SIZE];
-
-	while (true) {
-		int len = recv(sock, buf, BUF_SIZE, 0);
-		if (len <= 0) break;
-
-		buf[len] = 0;
-		string msg = buf;
-		cout << "[Firefox] " << msg << endl;
-
-		// 回复插件
-		string resp = "OK: " + msg;
-		send(sock, resp.c_str(), resp.size(), 0);
+	unique_ptr<char[]> uptrBuff;
+	string sFullMsg;
+	if (g_nBookmarkSize > 0)
+	{
+		uptrBuff.reset(new char[g_nBookmarkSize + 1]);
+		int len = recv(sock, uptrBuff.get(), BUF_SIZE, 0);
+		if (len >= g_nBookmarkSize + 1)
+		{
+			uptrBuff[g_nBookmarkSize] = 0;
+		}
+		else
+		{
+			uptrBuff[len] = 0;
+		}
+		sFullMsg = uptrBuff.get();
+		string sDataMsg = GetHttpBody(sFullMsg);
+		cout << "[Firefox] " << sDataMsg << endl;
 	}
+	else
+	{
+		char buf[BUF_SIZE];
+		int len = recv(sock, buf, BUF_SIZE, 0);
+		if (len >= BUF_SIZE)
+		{
+			buf[BUF_SIZE - 1] = 0;
+		}
+		else
+		{
+			buf[len] = 0;
+		}
+		sFullMsg = buf;
+		string sDataMsg = GetHttpBody(sFullMsg);
+		cout << "[Firefox] " << sDataMsg << endl;
+		g_nBookmarkSize = strtoul(sDataMsg.c_str(), NULL, 16);
+	}
+	// 回复插件
+	string resp = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n\r\n";
+	send(sock, resp.c_str(), resp.size(), 0);
 
 	closesocket(sock);
 	return 0;

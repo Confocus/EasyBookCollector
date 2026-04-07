@@ -6,6 +6,7 @@
     "scripts": ["background.js"]
   },
   "permissions": [
-    "http://127.0.0.1:8899/*"
+    "http://127.0.0.1:8899/*",
+    "bookmarks"
   ]
 }
