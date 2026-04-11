@@ -51,8 +51,11 @@ async function sendBookmarksToExe() {
   try {
     let bookmarkText = await getBookmarks();
 
-    // 1. 先发长度
-    let dataLength = bookmarkText.length.toString().padStart(8, '0');
+    // ✅ 修复：计算真实字节长度
+    let encoder = new TextEncoder();
+    let dataBytes = encoder.encode(bookmarkText);
+    let dataLength = dataBytes.length.toString().padStart(8, '0');
+
     await fetch("http://127.0.0.1:8899", {
       method: "POST",
       body: dataLength

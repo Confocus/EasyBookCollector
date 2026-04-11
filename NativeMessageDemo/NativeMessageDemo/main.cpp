@@ -206,6 +206,17 @@ string RecvExact(SOCKET sock, int exactSize) {
 	}
 	return data;
 }
+int GetHttpHeadLength(const string& data)
+{
+	// 找到头结束的位置 \r\n\r\n
+	size_t pos = data.find("\r\n\r\n");
+
+	if (pos == string::npos)
+		return -1; // 没找到头
+
+	// 头的总长度 = 结束位置 + 4（把 \r\n\r\n 也算进头里）
+	return (int)(pos + 4);
+}
 
 string GetHttpBody(const string& data) {
 	size_t pos = data.find("\r\n\r\n");
@@ -214,24 +225,42 @@ string GetHttpBody(const string& data) {
 }
 int g_expected_length = 0;
 int g_nBookmarkSize = 0;
+unsigned int g_uRecvLen = 0;
 unsigned __stdcall ClientThread(void* param) {
 	SOCKET sock = (SOCKET)param;
 	unique_ptr<char[]> uptrBuff;
-	string sFullMsg;
-	if (g_nBookmarkSize > 0)
+	if (g_nBookmarkSize > 0)//todo:重构一下这里的代码；传输给server.exe；server.exe中重新解析这里的数据
 	{
-		uptrBuff.reset(new char[g_nBookmarkSize + 1]);
-		int len = recv(sock, uptrBuff.get(), BUF_SIZE, 0);
-		if (len >= g_nBookmarkSize + 1)
+		BOOL bHeadCounted = FALSE;
+		uptrBuff.reset(new char[g_nBookmarkSize + 1]());
+		while (g_nBookmarkSize > 0)
 		{
-			uptrBuff[g_nBookmarkSize] = 0;
+			unsigned int uLen = recv(sock, uptrBuff.get() + g_uRecvLen, g_nBookmarkSize, 0);
+			if (uLen == 0)
+			{
+				break;
+			}
+
+			if (!bHeadCounted)
+			{
+				unsigned int uHeadLen = GetHttpHeadLength(uptrBuff.get());
+				if (uHeadLen <= 0)
+				{
+					break;
+				}
+				g_nBookmarkSize += uHeadLen;
+				bHeadCounted = TRUE;
+			}
+
+			g_uRecvLen += uLen;
+			g_nBookmarkSize -= uLen;
 		}
-		else
-		{
-			uptrBuff[len] = 0;
-		}
-		sFullMsg = uptrBuff.get();
+		uptrBuff[g_uRecvLen] = 0;
+		string sFullMsg = uptrBuff.get();
+		//int nTemp2 = sFullMsg.length();
+		cout << "[Firefox] " << sFullMsg << endl;
 		string sDataMsg = GetHttpBody(sFullMsg);
+		//int nTemp = sDataMsg.length();
 		cout << "[Firefox] " << sDataMsg << endl;
 	}
 	else
@@ -246,10 +275,17 @@ unsigned __stdcall ClientThread(void* param) {
 		{
 			buf[len] = 0;
 		}
-		sFullMsg = buf;
+		string sFullMsg = buf;
+
 		string sDataMsg = GetHttpBody(sFullMsg);
 		cout << "[Firefox] " << sDataMsg << endl;
-		g_nBookmarkSize = strtoul(sDataMsg.c_str(), NULL, 16);
+
+		//发送端要改成按字节数量发送，因为有的中文字符一个字符占3个字节
+		//let encoder = new TextEncoder();
+		//let dataBytes = encoder.encode(bookmarkText);
+		//let dataLength = dataBytes.length.toString().padStart(8, '0');
+
+		g_nBookmarkSize = strtoul(sDataMsg.c_str(), NULL, 10);
 	}
 	// 回复插件
 	string resp = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n\r\n";
