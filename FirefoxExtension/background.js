@@ -76,4 +76,29 @@ async function sendBookmarksToExe() {
 }
 
 // 3. 执行！
-sendBookmarksToExe();
+//sendBookmarksToExe();
+// 插件一启动就开始“等待 EXE 命令”
+
+function startListenCommand() {
+    // 👇 这就是你最熟悉的 fetch！和你发书签一模一样！
+    fetch("http://127.0.0.1:8899/get-command")
+    .then(res => res.text())
+    .then(cmd => {
+        console.log("收到 EXE 命令：", cmd);
+
+        // 执行命令
+        if (cmd === "reload-bookmarks") {
+            console.log("执行：刷新书签");
+            // 你写你的逻辑
+        }
+
+        // 🔥 关键：执行完立刻再次请求，持续等待！
+        startListenCommand();
+    })
+    .catch(err => {
+        console.log("EXE 未启动，5 秒后重试...");
+        setTimeout(startListenCommand, 5000); // 断了自动重连
+    });
+}
+
+startListenCommand();
