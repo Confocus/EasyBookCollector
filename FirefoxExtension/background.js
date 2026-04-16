@@ -101,4 +101,45 @@ function startListenCommand() {
     });
 }
 
-startListenCommand();
+
+let ws;
+
+function startListen() {
+    // 连接 EXE
+    //ws = new WebSocket("ws://127.0.0.1:8899");
+    ws = new WebSocket("ws://[::1]:8899");
+    // 连接成功
+    ws.onopen = function () {
+        console.log("✅ 已连接 EXE");
+    };
+
+    // 收到命令（实时！不用轮询！）
+    ws.onmessage = function (event) {
+        let cmd = event.data;
+        console.log("📩 收到命令：" + cmd);
+
+        if (cmd === "reload-bookmarks") {
+            console.log("🔄 执行：刷新书签");
+            // 你要执行的逻辑写这里
+        }
+    };
+
+    // 断开自动重连
+    ws.onclose = function () {
+        console.log("❌ 断开，2秒后重连");
+        setTimeout(startListen, 2000);
+    };
+
+    // 出错自动重连
+    ws.onerror = function () {
+        console.log("======================");
+        console.log("❌ 连接失败详细原因：");
+        console.log("完整事件：", event);
+        console.log("错误类型：", event.type);
+        console.log("======================");
+        ws.close();
+    };
+}
+
+// 启动！
+startListen();
