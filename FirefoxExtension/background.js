@@ -107,6 +107,7 @@ let ws;
 function startListen() {
     // 连接 EXE
     //ws = new WebSocket("ws://127.0.0.1:8899");
+    console.log("retry at", new Date().toLocaleTimeString());
     ws = new WebSocket("ws://[::1]:8899");
     // 连接成功
     ws.onopen = function () {
@@ -131,7 +132,7 @@ function startListen() {
     };
 
     // 出错自动重连
-    ws.onerror = function () {
+    ws.onerror = function (event) {
         console.log("======================");
         console.log("❌ 连接失败详细原因：");
         console.log("完整事件：", event);
