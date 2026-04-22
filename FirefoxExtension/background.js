@@ -47,33 +47,6 @@ async function getBookmarks() {
 }
 
 
-async function sendBookmarksToExe() {
-  try {
-    let bookmarkText = await getBookmarks();
-
-    // ✅ 修复：计算真实字节长度
-    let encoder = new TextEncoder();
-    let dataBytes = encoder.encode(bookmarkText);
-    let dataLength = dataBytes.length.toString().padStart(8, '0');
-
-    await fetch("http://127.0.0.1:8899", {
-      method: "POST",
-      body: dataLength
-    });
-
-    // 2. 再发内容（必须等待上一步完成）
-    const res = await fetch("http://127.0.0.1:8899", {
-      method: "POST",
-      body: bookmarkText
-    });
-
-    const data = await res.text();
-    console.log("✅ 书签发送成功", data);
-
-  } catch (err) {
-    console.error("❌ 发送失败", err);
-  }
-}
 
 // 3. 执行！
 //sendBookmarksToExe();
@@ -101,6 +74,56 @@ function startListenCommand() {
     });
 }
 
+async function sendBookmarksToExe2() {
+  console.log("sendBookmarksToExe start");
+
+  try {
+    let bookmarkText = await getBookmarks();
+
+    // ✅ 修复：计算真实字节长度
+    let encoder = new TextEncoder();
+    let dataBytes = encoder.encode(bookmarkText);
+    let dataLength = dataBytes.length.toString().padStart(8, '0');
+    
+    console.log("sendBookmarksToExe dataLength");
+    await fetch("http://127.0.0.1:8899", {
+      method: "POST",
+      body: dataLength
+    });
+
+    // 2. 再发内容（必须等待上一步完成）
+    console.log("sendBookmarksToExe bookmarkText");
+    const res = await fetch("http://127.0.0.1:8899", {
+      method: "POST",
+      body: bookmarkText
+    });
+
+    const data = await res.text();
+    console.log("✅ 书签发送成功", data);
+
+  } catch (err) {
+    console.error("❌ 发送失败", err);
+  }
+}
+
+async function sendBookmarksToExe() {
+    console.log("sendBookmarksToExe start");
+
+    try {
+        // 获取书签
+        let bookmarkText = await getBookmarks();
+        console.log("✅ 准备发送书签数据，长度：", bookmarkText.length);
+
+        // --- WebSocket 直接发送！一行搞定！---
+        ws.send(bookmarkText);
+
+        console.log("✅ 书签已发送到 EXE！");
+
+    } catch (err) {
+        console.error("❌ 发送失败：", err);
+    }
+}
+
 
 let ws;
 
@@ -122,6 +145,7 @@ function startListen() {
         if (cmd === "reload-bookmarks") {
             console.log("🔄 执行：刷新书签");
             // 你要执行的逻辑写这里
+            sendBookmarksToExe();
         }
     };
 
