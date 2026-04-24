@@ -1,63 +1,4 @@
 ﻿
-//
-//void RunDaemon() {
-//	WSADATA wsa;
-//	WSAStartup(MAKEWORD(2, 2), &wsa);
-//
-//	SOCKET server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-//	sockaddr_in addr = { 0 };
-//	addr.sin_family = AF_INET;
-//	addr.sin_port = htons(PORT);
-//	addr.sin_addr.s_addr = INADDR_ANY;
-//
-//	bind(server, (sockaddr*)&addr, sizeof(addr));
-//	listen(server, 5);
-//
-//	cout << u8"守护进程已启动：127.0.0.1:" << PORT << endl;
-//
-//	while (true) //todo:在这里循环等待发过来的消息？
-//	{
-//		//WaitForSingleObject()//如果收到了send reload-bookmarks的Event就去链接accept，然后reload一次
-//		//没有启动浏览器或加载插件的时候就一直在这里等待
-//		SOCKET client = accept(server, NULL, NULL);
-//
-//		//todo：其它的命令也在这里判断
-//		//todo:这里判断如果外部命令给与的是reload-bookmarks
-//		std::cout << u8"✅ 插件已连接！\n";
-//		const char* cmd = "reload-bookmarks";
-//
-//		/*char buf[4096];
-//		int recvLen = recv(client, buf, sizeof(buf) - 1, 0);
-//		if (recvLen <= 0) { closesocket(client); return; }
-//		buf[recvLen] = 0;*/
-//
-//		const char* resp =
-//			"HTTP/1.1 200 OK\r\n"
-//			"Access-Control-Allow-Origin: *\r\n"
-//			"Content-Type: text/plain\r\n"
-//			"Content-Length: 16\r\n"
-//			"\r\n"
-//			"reload-bookmarks";
-//
-//		send(client, resp, strlen(resp), 0);
-//
-//		//todo：发送完reload-bookmarks命令自然就是接收bookmarks了
-//		//_beginthreadex(0, 0, RecvAllBookmarksThread, (void*)client, 0, 0);
-//		Sleep(1 * 1000);
-//		closesocket(client);
-//	}
-
-	/*closesocket(server);
-	WSACleanup();*/
-//}
-////
-////int main() {
-////	SetConsoleOutputCP(CP_UTF8);
-////	//todo：不用exe来控制Firefox加载插件，而是让Firefox一启动就自己主动加载插件，然后尝试与exe建立连接
-////	RunDaemon();
-////
-////	return 0;
-//}
 #define _WINSOCKAPI_
 
 #include <windows.h>
@@ -73,8 +14,9 @@
 using namespace std;
 #pragma comment(lib, "ws2_32.lib")
 
-#define PORT 8899
-#define BUF_SIZE 4096 * 2
+#define PORT			8899
+#define MAX_BUF_SIZE	4096 * 2
+#define BOOKMARK_TRANS_PIPE_NAME	L"\\\\.\\pipe\\BookmarkTransPipe"
 
 std::string GetCmdFromRemote()
 {
@@ -82,10 +24,13 @@ std::string GetCmdFromRemote()
 	return "reload-bookmarks";
 }
 
-bool RecvWebSocketData(SOCKET sock, char* outBuf, int& outLen)
+BOOL RecvWebSocketData(SOCKET sock, shared_ptr<char[]> spRecvBuf, int64_t& outLen)
 {
 	BYTE header[2];
-	if (recv(sock, (char*)header, 2, 0) <= 0) return false;
+	if (SOCKET_ERROR == recv(sock, (char*)header, 2, 0) )
+	{
+		return FALSE;
+	}
 
 	// 1. 提取帧类型（文本=0x01）
 	BYTE fin = header[0] & 0x80;
@@ -100,7 +45,10 @@ bool RecvWebSocketData(SOCKET sock, char* outBuf, int& outLen)
 	{
 		// 2字节扩展长度 → 必须用 ntohs 转字节序！
 		uint16_t len16;
-		recv(sock, (char*) & len16, 2, 0);
+		if (SOCKET_ERROR == recv(sock, (char*)&len16, 2, 0))
+		{
+			return FALSE;
+		}
 		payloadLen = ntohs(len16); // ✅ 这才是对的！
 	}
 	else if (payloadLen == 127)
@@ -108,28 +56,40 @@ bool RecvWebSocketData(SOCKET sock, char* outBuf, int& outLen)
 		// 你发书签永远走不到这里！！！
 		// 如果你强行读8字节，必错！
 		uint64_t len64;
-		recv(sock, (char*)&len64, 8, 0);
+		if (SOCKET_ERROR == recv(sock, (char*)&len64, 8, 0))
+		{
+			return FALSE;
+		}
 		payloadLen = _byteswap_uint64(len64); // 必须反转
 	}
 
 	// 4. 读取掩码
 	BYTE mask[4] = { 0 };
-	if (hasMask) recv(sock, (char*)mask, 4, 0);
-
+	if (hasMask)
+	{
+		if (SOCKET_ERROR == recv(sock, (char*)mask, 4, 0))
+		{
+			return FALSE;
+		}
+	}
 	// 5. 读取真实内容
-	if (payloadLen > 4096) payloadLen = 4096; // 防溢出
-	recv(sock, outBuf, (int)payloadLen, 0);
+	spRecvBuf.reset(new char[payloadLen + 1]());
+	//if (payloadLen > 4096) payloadLen = 4096; // 防溢出
+	if (SOCKET_ERROR == recv(sock, spRecvBuf.get(), (int)payloadLen, 0))
+	{
+		return FALSE;
+	}
 
 	// 6. 解密！！！
 	for (uint64_t i = 0; i < payloadLen; i++)
-		outBuf[i] ^= mask[i % 4];
+	{
+		spRecvBuf[i] ^= mask[i % 4];
+	}
 
-	outLen = (int)payloadLen;
-	outBuf[outLen] = 0; // 字符串结束符
-	cout << outBuf << endl;
-	return true;
+	spRecvBuf[payloadLen] = 0; // 字符串结束符
+	cout << spRecvBuf << endl;
+	return TRUE;
 }
-
 
 uint32_t GetHttpHeadLength(const string& data)
 {
@@ -149,83 +109,6 @@ string GetHttpBody(const string& data) {
 	return data.substr(pos + 4);
 }
 
-uint32_t g_nBookmarkSize = 0;
-uint32_t g_uRecvLen = 0;
-unsigned __stdcall RecvAllBookmarksThread(void* param) 
-{
-	SOCKET sock = (SOCKET)param;
-	unique_ptr<char[]> uptrBuff;
-	do {
-		if (g_nBookmarkSize > 0)//todo:重构一下这里的代码；传输给server.exe；server.exe中重新解析这里的数据
-		{
-			BOOL bHeadCounted = FALSE;
-			uptrBuff.reset(new char[g_nBookmarkSize + 1]());
-			while (g_nBookmarkSize > 0)
-			{
-				unsigned int uLen = recv(sock, uptrBuff.get() + g_uRecvLen, g_nBookmarkSize, 0);
-				if (uLen == 0)
-				{
-					break;
-				}
-
-				if (!bHeadCounted)
-				{
-					unsigned int uHeadLen = GetHttpHeadLength(uptrBuff.get());
-					if (uHeadLen <= 0)
-					{
-						break;
-					}
-					g_nBookmarkSize += uHeadLen;
-					bHeadCounted = TRUE;
-				}
-
-				g_uRecvLen += uLen;
-				g_nBookmarkSize -= uLen;
-			}
-			uptrBuff[g_uRecvLen] = 0;
-			string sFullMsg = uptrBuff.get();
-			cout << "[Firefox] " << sFullMsg << endl;
-			string sDataMsg = GetHttpBody(sFullMsg);
-			cout << "[Firefox] " << sDataMsg << endl;
-		}
-		else
-		{
-			char szBuf[BUF_SIZE] = {0};
-			//uint32_t uLen = recv(sock, szBuf, BUF_SIZE, 0);
-			/*if (uLen >= BUF_SIZE)
-			{
-				szBuf[BUF_SIZE - 1] = 0;
-			}
-			else
-			{
-				szBuf[uLen] = 0;
-			}*/
-			char recvBuf[4096];
-			int dataLen = 0;
-			RecvWebSocketData(sock, recvBuf, dataLen);
-			string sDataMsg = GetHttpBody(szBuf);
-			cout << "[Firefox] " << sDataMsg << endl;
-
-			//发送端要改成按字节数量发送，因为有的中文字符一个字符占3个字节
-			//let encoder = new TextEncoder();
-			//let dataBytes = encoder.encode(bookmarkText);
-			//let dataLength = dataBytes.length.toString().padStart(8, '0');
-
-			g_nBookmarkSize = strtoul(sDataMsg.c_str(), NULL, 10);
-			if (0 == g_nBookmarkSize)
-			{
-				break;
-			}
-		}
-	} while (0);
-	
-	// 回复插件
-	string resp = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n\r\n";
-	send(sock, resp.c_str(), resp.size(), 0);
-
-	closesocket(sock);
-	return 0;
-}
 
 bool SHA1_Simple(const char* input, char* outSHA1)
 {
@@ -300,16 +183,22 @@ void ComputeWebSocketAccept(const char* key, char* out)
 }
 
 // 发送 WebSocket 消息
-void SendWebSocketMsg(SOCKET s, const char* msg)
+BOOL SendWebSocketMsg(SOCKET sock, const char* msg)
 {
 	char buf[1024];
 	int len = lstrlenA(msg);
-
 	buf[0] = 0x81;
 	buf[1] = len;
 	memcpy(buf + 2, msg, len);
 
-	send(s, buf, 2 + len, 0);
+	if (SOCKET_ERROR == send(sock, buf, 2 + len, 0))
+	{
+		cout << "send 失败！错误码：" << WSAGetLastError() << endl;
+		closesocket(sock);
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 #include <wincrypt.h>
@@ -493,9 +382,30 @@ namespace uWS {
 	};
 }
 
-VOID SendCmd()
+BOOL TransferBookMarksToGUI(std::shared_ptr<char[]> spData, int64_t nDataLen)
 {
+	HANDLE hPipe = CreateFile(
+		BOOKMARK_TRANS_PIPE_NAME,
+		GENERIC_READ | GENERIC_WRITE,
+		0, NULL,
+		OPEN_EXISTING,
+		0, NULL);
 
+	if (hPipe == INVALID_HANDLE_VALUE) {
+		printf("连接失败\n");
+		return;
+	}
+
+	// 发送
+	WriteFile(hPipe, "hello rpc", 9, NULL, NULL);
+
+	// 接收回复
+	char buf[4096] = { 0 };
+	DWORD len = 0;
+	ReadFile(hPipe, buf, 4096, &len, NULL);
+	printf("服务器回复：%s\n", buf);
+
+	CloseHandle(hPipe);
 }
 
 unsigned __stdcall SendAndRecvCommand(void* param)
@@ -526,64 +436,81 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	printf(u8"WebSocket 服务已启动: ws://127.0.0.1:%d\n", PORT);
 	//过往的要在accept处等很久的原因：失败的次数太多了导致FireFox尝试重连的间隔越来越长
 	
-	while (1)
+	while (TRUE)
 	{
 		printf("%llu waiting accept\n", GetTickCount64());
 		SOCKET client = accept(server, NULL, NULL);
 		printf("%llu accept ok\n", GetTickCount64());
+		BOOL bSucc = FALSE;
+		char recvBuf[MAX_BUF_SIZE] = { 0 };
+		char* keyPos = nullptr;
+		char szKey[25] = { 0 };
+		char szOutput[29] = { 0 };
+		char szResponse[MAX_BUF_SIZE] = { 0 };
 
-		char recvBuf[4096] = { 0 };
-		recv(client, recvBuf, 4096, 0);
-		cout << recvBuf << endl;
-
-		char* keyPos = strstr(recvBuf, "Sec-WebSocket-Key: ");
-		if (!keyPos) 
-		{ 
-			closesocket(client); 
-			continue; 
+		if(SOCKET_ERROR == recv(client, recvBuf, MAX_BUF_SIZE, 0))
+		{
+			goto ERROR_POINT;
 		}
 
-		char key[25] = { 0 };
-		sscanf_s(keyPos + 19, "%[^\r\n]", key, _countof(key));
-		cout << key << endl;
+		keyPos = strstr(recvBuf, "Sec-WebSocket-Key: ");
+		if (!keyPos) 
+		{ 
+			goto ERROR_POINT;
+		}
 
-		char output[29] = { 0 };
+		
+		sscanf_s(keyPos + 19, "%[^\r\n]", szKey, _countof(szKey));
+		cout << szKey << endl;
+
 		uWS::WebSocketHandshake temp;
-		temp.generate(key, output);
+		temp.generate(szKey, szOutput);
 
-		char response[1024] = { 0 };
-		wsprintfA(response,
+		wsprintfA(szResponse,
 			"HTTP/1.1 101 Switching Protocols\r\n"
 			"Upgrade: websocket\r\n"
 			"Connection: Upgrade\r\n"
 			"Sec-WebSocket-Accept: %s\r\n"
 			"Sec-WebSocket-Protocol: chat\r\n"
-			"\r\n", output);
+			"\r\n", szOutput);
 
-		cout << response << endl;
-		if (send(client, response, lstrlenA(response), 0) == SOCKET_ERROR)
+		cout << szResponse << endl;
+		if (send(client, szResponse, lstrlenA(szResponse), 0) == SOCKET_ERROR)
 		{
-			printf("send failed: %d\n", WSAGetLastError());
+			goto ERROR_POINT;
 		}
-		printf("握手成功！\n");
 
 		if (strcmp(GetCmdFromRemote().c_str(), "reload-bookmarks") == 0)
 		{
-			SendWebSocketMsg(client, "reload-bookmarks");
-			printf("已发送命令：reload-bookmarks\n");
-			RecvAllBookmarksThread((void*)client);
+			if (!SendWebSocketMsg(client, "reload-bookmarks"))
+			{
+				goto ERROR_POINT;
+			}
 
+			int64_t nDataLen = 0;
+			shared_ptr<char[]> spRecvBuf;
+			if (!RecvWebSocketData(client, spRecvBuf, nDataLen))
+			{
+				goto ERROR_POINT;
+			}
+
+			//todo:通信传给GUI.exe
 		}
-		else
+		bSucc = TRUE;
+
+	ERROR_POINT:
+		if (!bSucc)
 		{
+			cout << "send 失败！错误码：" << WSAGetLastError() << endl;
+			//todo:如果失败了通知Firefox再次尝试发送，处理client端的代码
+			SendWebSocketMsg(client, "retry");
 		}
-		// 发送命令给浏览器
 		closesocket(client);
+		continue;
+		// 发送命令给浏览器
 
 	}
 	closesocket(server);
-
-	// 可选关（程序退出前调用一次就行）
 	WSACleanup();
 }
 

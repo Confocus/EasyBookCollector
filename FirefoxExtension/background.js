@@ -74,38 +74,6 @@ function startListenCommand() {
     });
 }
 
-async function sendBookmarksToExe2() {
-  console.log("sendBookmarksToExe start");
-
-  try {
-    let bookmarkText = await getBookmarks();
-
-    // ✅ 修复：计算真实字节长度
-    let encoder = new TextEncoder();
-    let dataBytes = encoder.encode(bookmarkText);
-    let dataLength = dataBytes.length.toString().padStart(8, '0');
-    
-    console.log("sendBookmarksToExe dataLength");
-    await fetch("http://127.0.0.1:8899", {
-      method: "POST",
-      body: dataLength
-    });
-
-    // 2. 再发内容（必须等待上一步完成）
-    console.log("sendBookmarksToExe bookmarkText");
-    const res = await fetch("http://127.0.0.1:8899", {
-      method: "POST",
-      body: bookmarkText
-    });
-
-    const data = await res.text();
-    console.log("✅ 书签发送成功", data);
-
-  } catch (err) {
-    console.error("❌ 发送失败", err);
-  }
-}
-
 async function sendBookmarksToExe() {
     console.log("sendBookmarksToExe start");
 
@@ -147,12 +115,15 @@ function startListen() {
             // 你要执行的逻辑写这里
             sendBookmarksToExe();
         }
+        if (cmd === "retry") {
+            console.log("🔄 retry");
+        }
     };
 
     // 断开自动重连
     ws.onclose = function () {
-        console.log("❌ 断开，2秒后重连");
-        setTimeout(startListen, 2000);
+        //console.log("❌ 断开，2秒后重连");
+        //setTimeout(startListen, 2000);
     };
 
     // 出错自动重连
