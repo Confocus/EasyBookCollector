@@ -16,6 +16,9 @@
 #include <shellapi.h>
 #include "ListViewMgr.h"
 
+#define PIPE_NAME_BOOKMARK_COM	L"\\\\.\\pipe\\BookmarkTransPipe"
+#define EVENT_NAME_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\ConnectPipe"
+
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 BOOL g_bIsTrackRegistered = FALSE;
@@ -155,6 +158,66 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 	return RegisterClassExW(&wcex);
 }
 
+unsigned __stdcall CommunicateWithDaemon(void* param)
+{
+	//todo:创建一个双向管道，用来发送命令和接收书签内容
+	// todo：通知有新命令，需要接收解析命令，并通过管道发送命令
+	// todo：接收书签，如果用一个管道就不需要再通知了，因为通知接收书签时肯定已经创建好管道了
+	// todo：确定收发命令的格式
+	//通知可以去解析数据了（但是现在）
+	HANDLE hRecvCmdEvent = CreateEvent(
+		NULL,
+		FALSE,
+		FALSE,
+		EVENT_NAME_RECV_CMD
+	);
+
+	if (hRecvCmdEvent == NULL)
+	{
+		return 0;
+	}
+
+	SetEvent(hRecvCmdEvent);
+
+	HANDLE hPipe = CreateNamedPipe(
+		PIPE_NAME_BOOKMARK_COM,
+		PIPE_ACCESS_DUPLEX,
+		PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+		1, 4096, 4096, 0, nullptr);
+	
+	BOOL connected = ConnectNamedPipe(hPipe, NULL);
+
+	if (!connected)
+	{
+		CloseHandle(hPipe);
+		return 0;
+	}
+
+	//todo:通知管道创建好，可以接受书签内容了
+	char buf[4096]{};
+	DWORD readLen = 0;
+	//todo:等待
+
+	while (true)
+	{
+		// 无数据就阻塞等待，零轮询、低CPU
+		BOOL ok = ReadFile(hPipe, buf, 4095, &readLen, nullptr);
+		if (!ok || readLen == 0)
+		{
+			// 客户端断开 / 出错，退出循环
+			break;
+		}
+
+		buf[readLen] = '\0';
+		// 处理收到的 RPC 数据
+		printf("收到: %s\n", buf);
+
+		// 可选：WriteFile 回复数据
+	}
+
+	CloseHandle(hPipe);
+}
+
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) 
 {
 	InitCommonControls();
@@ -168,11 +231,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
+	HANDLE hThread = (HANDLE)_beginthreadex(0, 0, CommunicateWithDaemon, (void*)NULL, 0, 0);
+
 	MSG msg;
 	while (GetMessageW(&msg, NULL, 0, 0)) {
 		TranslateMessage(&msg);
 		DispatchMessageW(&msg);
 	}
+
+	CloseHandle(hThread);
 	return (int)msg.wParam;
 }
 

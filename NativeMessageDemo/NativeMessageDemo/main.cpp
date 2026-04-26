@@ -16,7 +16,9 @@ using namespace std;
 
 #define PORT			8899
 #define MAX_BUF_SIZE	4096 * 2
-#define BOOKMARK_TRANS_PIPE_NAME	L"\\\\.\\pipe\\BookmarkTransPipe"
+#define PIPE_NAME_BOOKMARK_COM	L"\\\\.\\pipe\\BookmarkTransPipe"
+#define EVENT_NAME_CONNECT_PIPE	L"{A1418B8A-7998-4262-9D44-47E607653E93}\ConnectPipe"
+#define EVENT_NAME_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\ConnectPipe"
 
 std::string GetCmdFromRemote()
 {
@@ -384,33 +386,69 @@ namespace uWS {
 
 BOOL TransferBookMarksToGUI(std::shared_ptr<char[]> spData, int64_t nDataLen)
 {
-	HANDLE hPipe = CreateFile(
-		BOOKMARK_TRANS_PIPE_NAME,
-		GENERIC_READ | GENERIC_WRITE,
-		0, NULL,
-		OPEN_EXISTING,
-		0, NULL);
+	HANDLE hConnectPipeEvent = NULL;
+	HANDLE hPipe = NULL;
+	do 
+	{
+		//todo:相互通知创建管道
+		printf("尝试连接\n");
+		hConnectPipeEvent = CreateEvent(
+			NULL,
+			FALSE,
+			FALSE,
+			EVENT_NAME_CONNECT_PIPE
+		);
 
-	if (hPipe == INVALID_HANDLE_VALUE) {
-		printf("连接失败\n");
-		return;
+		if (hConnectPipeEvent == NULL) 
+		{
+			break;
+		}
+
+		if (WAIT_OBJECT_0 != WaitForSingleObject(hConnectPipeEvent, INFINITE))
+		{
+			break;
+		}
+
+		hPipe = CreateFile(
+			PIPE_NAME_BOOKMARK_COM,
+			GENERIC_READ | GENERIC_WRITE,
+			0, NULL,
+			OPEN_EXISTING,
+			0, NULL);
+		if (hPipe == INVALID_HANDLE_VALUE) {
+			break;
+		}
+
+		// 发送
+		WriteFile(hPipe, "hello rpc", 9, NULL, NULL);
+
+		// 接收回复
+		char buf[4096] = { 0 };
+		DWORD len = 0;
+		ReadFile(hPipe, buf, 4096, &len, NULL);
+		printf("服务器回复：%s\n", buf);
+	} while (FALSE);
+	if (hConnectPipeEvent)
+	{
+		CloseHandle(hConnectPipeEvent);
 	}
 
-	// 发送
-	WriteFile(hPipe, "hello rpc", 9, NULL, NULL);
-
-	// 接收回复
-	char buf[4096] = { 0 };
-	DWORD len = 0;
-	ReadFile(hPipe, buf, 4096, &len, NULL);
-	printf("服务器回复：%s\n", buf);
-
-	CloseHandle(hPipe);
+	if (hPipe != INVALID_HANDLE_VALUE)
+	{
+		CloseHandle(hPipe);
+	}
 }
 
 unsigned __stdcall SendAndRecvCommand(void* param)
 {
-	//------------------------------------------------
+	char szResponse[MAX_BUF_SIZE] = { 0 };
+	BOOL bSucc = FALSE;
+	char recvBuf[MAX_BUF_SIZE] = { 0 };
+	char* keyPos = nullptr;
+	char szKey[25] = { 0 };
+	char szOutput[29] = { 0 };
+	HANDLE hRecvCmdEvent = NULL;
+
 	WSADATA wsa;
 	WSAStartup(MAKEWORD(2, 2), &wsa);
 
@@ -424,58 +462,67 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	if (bind(server, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
 	{
 		printf("bind failed: %d\n", WSAGetLastError());
-		return 1;
+		return 0;
 	}
 
 	if (listen(server, 5) == SOCKET_ERROR)
 	{
 		printf("listen failed: %d\n", WSAGetLastError());
-		return 1;
+		return 0;
 	}
 
 	printf(u8"WebSocket 服务已启动: ws://127.0.0.1:%d\n", PORT);
 	//过往的要在accept处等很久的原因：失败的次数太多了导致FireFox尝试重连的间隔越来越长
-	
+	//与Firefox建立连接
+	SOCKET client = accept(server, NULL, NULL);
+
+	if (SOCKET_ERROR == recv(client, recvBuf, MAX_BUF_SIZE, 0))
+	{
+		return 0;
+	}
+
+	keyPos = strstr(recvBuf, "Sec-WebSocket-Key: ");
+	if (!keyPos)
+	{
+		return 0;
+	}
+
+	sscanf_s(keyPos + 19, "%[^\r\n]", szKey, _countof(szKey));
+	cout << szKey << endl;
+
+	uWS::WebSocketHandshake temp;
+	temp.generate(szKey, szOutput);
+
+	wsprintfA(szResponse,
+		"HTTP/1.1 101 Switching Protocols\r\n"
+		"Upgrade: websocket\r\n"
+		"Connection: Upgrade\r\n"
+		"Sec-WebSocket-Accept: %s\r\n"
+		"Sec-WebSocket-Protocol: chat\r\n"
+		"\r\n", szOutput);
+
+	cout << szResponse << endl;
+	if (send(client, szResponse, lstrlenA(szResponse), 0) == SOCKET_ERROR)
+	{
+		return 0;
+	}
+	//至此成功建立连接
+
 	while (TRUE)
 	{
-		printf("%llu waiting accept\n", GetTickCount64());
-		SOCKET client = accept(server, NULL, NULL);
-		printf("%llu accept ok\n", GetTickCount64());
-		BOOL bSucc = FALSE;
-		char recvBuf[MAX_BUF_SIZE] = { 0 };
-		char* keyPos = nullptr;
-		char szKey[25] = { 0 };
-		char szOutput[29] = { 0 };
-		char szResponse[MAX_BUF_SIZE] = { 0 };
+		hRecvCmdEvent = CreateEvent(
+			NULL,
+			FALSE,
+			FALSE,
+			EVENT_NAME_RECV_CMD
+		);
 
-		if(SOCKET_ERROR == recv(client, recvBuf, MAX_BUF_SIZE, 0))
+		if (hRecvCmdEvent == NULL)
 		{
 			goto ERROR_POINT;
 		}
-
-		keyPos = strstr(recvBuf, "Sec-WebSocket-Key: ");
-		if (!keyPos) 
-		{ 
-			goto ERROR_POINT;
-		}
-
-		
-		sscanf_s(keyPos + 19, "%[^\r\n]", szKey, _countof(szKey));
-		cout << szKey << endl;
-
-		uWS::WebSocketHandshake temp;
-		temp.generate(szKey, szOutput);
-
-		wsprintfA(szResponse,
-			"HTTP/1.1 101 Switching Protocols\r\n"
-			"Upgrade: websocket\r\n"
-			"Connection: Upgrade\r\n"
-			"Sec-WebSocket-Accept: %s\r\n"
-			"Sec-WebSocket-Protocol: chat\r\n"
-			"\r\n", szOutput);
-
-		cout << szResponse << endl;
-		if (send(client, szResponse, lstrlenA(szResponse), 0) == SOCKET_ERROR)
+		//等待外部的命令
+		if (WAIT_OBJECT_0 != WaitForSingleObject(hRecvCmdEvent, INFINITE))
 		{
 			goto ERROR_POINT;
 		}
@@ -495,21 +542,25 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 			}
 
 			//todo:通信传给GUI.exe
+			TransferBookMarksToGUI(spRecvBuf, nDataLen);
 		}
+
 		bSucc = TRUE;
+		if (hRecvCmdEvent)
+		{
+			CloseHandle(hRecvCmdEvent);
+		}
 
 	ERROR_POINT:
 		if (!bSucc)
 		{
-			cout << "send 失败！错误码：" << WSAGetLastError() << endl;
 			//todo:如果失败了通知Firefox再次尝试发送，处理client端的代码
+			cout << "send 失败！错误码：" << WSAGetLastError() << endl;
 			SendWebSocketMsg(client, "retry");
 		}
-		closesocket(client);
-		continue;
-		// 发送命令给浏览器
-
 	}
+
+	closesocket(client);
 	closesocket(server);
 	WSACleanup();
 }
