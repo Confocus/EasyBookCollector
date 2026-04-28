@@ -18,7 +18,8 @@ using namespace std;
 #define MAX_BUF_SIZE	4096 * 2
 #define PIPE_NAME_BOOKMARK_COM	L"\\\\.\\pipe\\BookmarkTransPipe"
 #define EVENT_NAME_CONNECT_PIPE	L"{A1418B8A-7998-4262-9D44-47E607653E93}\ConnectPipe"
-#define EVENT_NAME_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\ConnectPipe"
+#define EVENT_NAME_SENT_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\SendRecvCmd"
+#define EVENT_NAME_RESPONSE	L"{A7486818-B995-4F67-BA45-834BE0B980EC}\Response"
 
 std::string GetCmdFromRemote()
 {
@@ -387,10 +388,12 @@ namespace uWS {
 BOOL TransferBookMarksToGUI(std::shared_ptr<char[]> spData, int64_t nDataLen)
 {
 	HANDLE hConnectPipeEvent = NULL;
-	HANDLE hPipe = NULL;
+	HANDLE hResponse = NULL;
+	HANDLE hPipe = INVALID_HANDLE_VALUE;
 	do 
 	{
 		//todo:相互通知创建管道
+		//等待对方创建好管道，得到通知就可以连接
 		printf("尝试连接\n");
 		hConnectPipeEvent = CreateEvent(
 			NULL,
@@ -404,6 +407,7 @@ BOOL TransferBookMarksToGUI(std::shared_ptr<char[]> spData, int64_t nDataLen)
 			break;
 		}
 
+		//确保管道是已经被创建好了的
 		if (WAIT_OBJECT_0 != WaitForSingleObject(hConnectPipeEvent, INFINITE))
 		{
 			break;
@@ -419,15 +423,31 @@ BOOL TransferBookMarksToGUI(std::shared_ptr<char[]> spData, int64_t nDataLen)
 			break;
 		}
 
-		// 发送
-		WriteFile(hPipe, "hello rpc", 9, NULL, NULL);
+		//发送数据
+		if (!WriteFile(hPipe, spData.get(), nDataLen, NULL, NULL))
+		{
+			break;
+		}
 
-		// 接收回复
-		char buf[4096] = { 0 };
+		hResponse = CreateEvent(
+			NULL,
+			FALSE,
+			FALSE,
+			EVENT_NAME_RESPONSE
+		);
+		if (hResponse == NULL)
+		{
+			break;
+		}
+		SetEvent(hResponse);
+
+		// todo:接收回复，确认这个回复是有必要的吗？
+		/*char buf[4096] = { 0 };
 		DWORD len = 0;
 		ReadFile(hPipe, buf, 4096, &len, NULL);
-		printf("服务器回复：%s\n", buf);
+		printf("服务器回复：%s\n", buf);*/
 	} while (FALSE);
+
 	if (hConnectPipeEvent)
 	{
 		CloseHandle(hConnectPipeEvent);
@@ -437,6 +457,13 @@ BOOL TransferBookMarksToGUI(std::shared_ptr<char[]> spData, int64_t nDataLen)
 	{
 		CloseHandle(hPipe);
 	}
+
+	if (hResponse)
+	{
+		CloseHandle(hResponse);
+	}
+
+	return TRUE;
 }
 
 unsigned __stdcall SendAndRecvCommand(void* param)
@@ -472,7 +499,7 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	}
 
 	printf(u8"WebSocket 服务已启动: ws://127.0.0.1:%d\n", PORT);
-	//过往的要在accept处等很久的原因：失败的次数太多了导致FireFox尝试重连的间隔越来越长
+	//注意：过往的要在accept处等很久的原因：失败的次数太多了导致FireFox尝试重连的间隔越来越长
 	//与Firefox建立连接
 	SOCKET client = accept(server, NULL, NULL);
 
@@ -508,25 +535,29 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	}
 	//至此成功建立连接
 
+	hRecvCmdEvent = CreateEvent(
+		NULL,
+		FALSE,
+		FALSE,
+		EVENT_NAME_SENT_RECV_CMD
+	);
+
+	if (hRecvCmdEvent == NULL)
+	{
+		goto ERROR_POINT;
+	}
+
 	while (TRUE)
 	{
-		hRecvCmdEvent = CreateEvent(
-			NULL,
-			FALSE,
-			FALSE,
-			EVENT_NAME_RECV_CMD
-		);
-
-		if (hRecvCmdEvent == NULL)
-		{
-			goto ERROR_POINT;
-		}
 		//等待外部的命令
+		printf(u8"等待接收GUI的命令\n", PORT);
 		if (WAIT_OBJECT_0 != WaitForSingleObject(hRecvCmdEvent, INFINITE))
 		{
 			goto ERROR_POINT;
 		}
+		printf(u8"等待到接收命令通知\n", PORT);
 
+		//todo：后续改成从管道中读命令
 		if (strcmp(GetCmdFromRemote().c_str(), "reload-bookmarks") == 0)
 		{
 			if (!SendWebSocketMsg(client, "reload-bookmarks"))
@@ -546,10 +577,6 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		}
 
 		bSucc = TRUE;
-		if (hRecvCmdEvent)
-		{
-			CloseHandle(hRecvCmdEvent);
-		}
 
 	ERROR_POINT:
 		if (!bSucc)
@@ -558,6 +585,11 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 			cout << "send 失败！错误码：" << WSAGetLastError() << endl;
 			SendWebSocketMsg(client, "retry");
 		}
+	}
+	
+	if (hRecvCmdEvent)
+	{
+		CloseHandle(hRecvCmdEvent);
 	}
 
 	closesocket(client);

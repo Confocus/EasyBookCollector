@@ -17,8 +17,10 @@
 #include "ListViewMgr.h"
 
 #define PIPE_NAME_BOOKMARK_COM	L"\\\\.\\pipe\\BookmarkTransPipe"
-#define EVENT_NAME_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\ConnectPipe"
-
+#define EVENT_NAME_SENT_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\SendRecvCmd"
+#define EVENT_NAME_RESPONSE	L"{A7486818-B995-4F67-BA45-834BE0B980EC}\Response"
+#define EVENT_NAME_CONNECT_PIPE	L"{A1418B8A-7998-4262-9D44-47E607653E93}\ConnectPipe"
+#define MAX_CMD_LEN	256
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 BOOL g_bIsTrackRegistered = FALSE;
@@ -158,64 +160,136 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 	return RegisterClassExW(&wcex);
 }
 
+BOOL CommandArrived(std::string &sCommand)
+{
+	sCommand = "reload - bookmarks";
+	return TRUE;
+}
+
+BOOL PushCommandIntoPipe(HANDLE hPipe, const std::string& sCommand)
+{
+	//todo：后续这里封装和构造发送命令格式
+	return WriteFile(hPipe, sCommand.c_str(), MAX_CMD_LEN, NULL, NULL);
+}
+
+//todo:考虑其它健壮性相关的问题，比如一端如果崩溃了怎么办
+//todo:要考察GUI、Daemon、Firefox三个端直接不同的出错情况下或不同启动顺序下是否能够挽救回来
 unsigned __stdcall CommunicateWithDaemon(void* param)
 {
-	//todo:创建一个双向管道，用来发送命令和接收书签内容
-	// todo：通知有新命令，需要接收解析命令，并通过管道发送命令
-	// todo：接收书签，如果用一个管道就不需要再通知了，因为通知接收书签时肯定已经创建好管道了
-	// todo：确定收发命令的格式
-	//通知可以去解析数据了（但是现在）
-	HANDLE hRecvCmdEvent = CreateEvent(
-		NULL,
-		FALSE,
-		FALSE,
-		EVENT_NAME_RECV_CMD
-	);
-
-	if (hRecvCmdEvent == NULL)
+	HANDLE hRecvCmdEvent = NULL;
+	HANDLE hPipe = INVALID_HANDLE_VALUE;
+	HANDLE hCreatePipeEvent = NULL;
+	HANDLE hRecvResponseEvent = NULL;
+	do 
 	{
-		return 0;
-	}
-
-	SetEvent(hRecvCmdEvent);
-
-	HANDLE hPipe = CreateNamedPipe(
-		PIPE_NAME_BOOKMARK_COM,
-		PIPE_ACCESS_DUPLEX,
-		PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-		1, 4096, 4096, 0, nullptr);
-	
-	BOOL connected = ConnectNamedPipe(hPipe, NULL);
-
-	if (!connected)
-	{
-		CloseHandle(hPipe);
-		return 0;
-	}
-
-	//todo:通知管道创建好，可以接受书签内容了
-	char buf[4096]{};
-	DWORD readLen = 0;
-	//todo:等待
-
-	while (true)
-	{
-		// 无数据就阻塞等待，零轮询、低CPU
-		BOOL ok = ReadFile(hPipe, buf, 4095, &readLen, nullptr);
-		if (!ok || readLen == 0)
+		hRecvCmdEvent = CreateEvent(
+			NULL,
+			FALSE,
+			FALSE,
+			EVENT_NAME_SENT_RECV_CMD
+		);
+		if (hRecvCmdEvent == NULL)
 		{
-			// 客户端断开 / 出错，退出循环
 			break;
 		}
 
-		buf[readLen] = '\0';
-		// 处理收到的 RPC 数据
-		printf("收到: %s\n", buf);
+		hRecvResponseEvent = CreateEvent(
+			NULL,
+			FALSE,
+			FALSE,//初始状态未触发
+			EVENT_NAME_RESPONSE
+		);
+		if (hRecvResponseEvent == NULL)
+		{
+			break;
+		}
 
-		// 可选：WriteFile 回复数据
+		hPipe = CreateNamedPipe(
+			PIPE_NAME_BOOKMARK_COM,
+			PIPE_ACCESS_DUPLEX,
+			PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+			1, 4096, 4096, 0, nullptr);
+		if (INVALID_HANDLE_VALUE == hPipe)
+		{
+			break;
+		}
+
+		//1、通知管道创建好，可以接受书签内容了
+		hCreatePipeEvent = CreateEvent(
+			NULL,
+			FALSE,
+			FALSE,
+			EVENT_NAME_CONNECT_PIPE
+		);
+		if (hCreatePipeEvent == NULL)
+		{
+			break;
+		}
+
+		SetEvent(hCreatePipeEvent);
+
+		/*BOOL connected = ConnectNamedPipe(hPipe, NULL);
+		if (!connected)
+		{
+			break;
+		}*/
+
+		char buf[4096]{};
+		DWORD readLen = 0;
+
+		while (true)
+		{
+			// todo：确定收发命令的格式
+			std::string sCommand;
+			if (CommandArrived(sCommand))//2、有需要执行的命令
+			{
+				//todo:后面如果是多线程，则要锁管道
+				PushCommandIntoPipe(hPipe, sCommand);
+				SetEvent(hRecvCmdEvent);//3、通知对方查看命令
+			}
+
+			if (WAIT_OBJECT_0 != WaitForSingleObject(hRecvResponseEvent, INFINITE))//4、等待接收Daemon的响应数据
+			{
+				continue;
+			}
+
+			//todo:GetLastError 109
+			BOOL bRet = ReadFile(hPipe, buf, 4095, &readLen, nullptr);
+			if (!bRet || readLen == 0)
+			{
+				continue;
+			}
+
+			buf[readLen] = '\0';
+			// 处理收到的 RPC 数据
+			printf("收到: %s\n", buf);
+
+			// 可选：WriteFile 回复数据
+		}
+
+		CloseHandle(hPipe);
+	} while (0);
+
+	if (hRecvCmdEvent)
+	{
+		CloseHandle(hRecvCmdEvent);
 	}
 
-	CloseHandle(hPipe);
+	if (hCreatePipeEvent)
+	{
+		CloseHandle(hCreatePipeEvent);
+	}
+
+	if (hPipe != INVALID_HANDLE_VALUE)
+
+	{
+		CloseHandle(hPipe);
+	}
+
+	if (hRecvResponseEvent)
+	{
+		CloseHandle(hRecvResponseEvent);
+	}
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) 
