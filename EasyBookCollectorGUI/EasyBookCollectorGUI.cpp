@@ -15,11 +15,14 @@
 #include "../public/PipeMgr.h"
 #include <shellapi.h>
 #include "ListViewMgr.h"
+#include <array>
 
-#define PIPE_NAME_BOOKMARK_COM	L"\\\\.\\pipe\\BookmarkTransPipe"
+#define PIPE_NAME_BOOKMARK_TRANS	L"\\\\.\\pipe\\BookmarkTransPipe"
 #define EVENT_NAME_SENT_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\SendRecvCmd"
 #define EVENT_NAME_RESPONSE	L"{A7486818-B995-4F67-BA45-834BE0B980EC}\Response"
 #define EVENT_NAME_CONNECT_PIPE	L"{A1418B8A-7998-4262-9D44-47E607653E93}\ConnectPipe"
+#define EVENT_NAME_DISCONNECT_PIPE	L"{4E17318B-F76A-448B-8401-42085E3AC90D}\DisconnectPipe"
+
 #define MAX_CMD_LEN	256
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
@@ -180,9 +183,11 @@ unsigned __stdcall CommunicateWithDaemon(void* param)
 	HANDLE hPipe = INVALID_HANDLE_VALUE;
 	HANDLE hCreatePipeEvent = NULL;
 	HANDLE hRecvResponseEvent = NULL;
+	HANDLE hDisconnectPipeEvent = NULL;
 	do 
 	{
-		hRecvCmdEvent = CreateEvent(
+		//创建Event通知对方已发送命令，可以去管道里读取
+		/*hRecvCmdEvent = CreateEvent(
 			NULL,
 			FALSE,
 			FALSE,
@@ -191,30 +196,31 @@ unsigned __stdcall CommunicateWithDaemon(void* param)
 		if (hRecvCmdEvent == NULL)
 		{
 			break;
-		}
+		}*/
 
-		hRecvResponseEvent = CreateEvent(
-			NULL,
-			FALSE,
-			FALSE,//初始状态未触发
-			EVENT_NAME_RESPONSE
-		);
-		if (hRecvResponseEvent == NULL)
-		{
-			break;
-		}
+		//打开Event，等待对方通知已向管道发送response
+		//hRecvResponseEvent = CreateEvent(
+		//	NULL,
+		//	FALSE,
+		//	FALSE,//初始状态未触发
+		//	EVENT_NAME_RESPONSE
+		//);
+		//if (hRecvResponseEvent == NULL)
+		//{
+		//	break;
+		//}
 
 		hPipe = CreateNamedPipe(
-			PIPE_NAME_BOOKMARK_COM,
+			PIPE_NAME_BOOKMARK_TRANS,
 			PIPE_ACCESS_DUPLEX,
 			PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-			1, 4096, 4096, 0, nullptr);
+			1, 0, 0, 0, nullptr);
 		if (INVALID_HANDLE_VALUE == hPipe)
 		{
 			break;
 		}
 
-		//1、通知管道创建好，可以接受书签内容了
+		//1、通知Daemon管道创建好，可以接受书签内容了
 		hCreatePipeEvent = CreateEvent(
 			NULL,
 			FALSE,
@@ -228,38 +234,83 @@ unsigned __stdcall CommunicateWithDaemon(void* param)
 
 		SetEvent(hCreatePipeEvent);
 
-		/*BOOL connected = ConnectNamedPipe(hPipe, NULL);
-		if (!connected)
-		{
-			break;
-		}*/
+		BOOL connected = ConnectNamedPipe(hPipe, NULL);
+		if (!connected) {
+			DWORD err = GetLastError();
 
-		char buf[4096]{};
-		DWORD readLen = 0;
+			if (err == ERROR_PIPE_CONNECTED) {
+				// 客户端已经提前连上了，这是正常情况
+			}
+			else {
+				printf("ConnectNamedPipe failed: %d\n", err);
+				break;
+			}
+		}
 
 		while (true)
 		{
 			// todo：确定收发命令的格式
 			std::string sCommand;
-			if (CommandArrived(sCommand))//2、有需要执行的命令
+			//2、如果从GUI的操作界面，有发送过来的要执行的命令
+			if (CommandArrived(sCommand))
 			{
 				//todo:后面如果是多线程，则要锁管道
-				PushCommandIntoPipe(hPipe, sCommand);
-				SetEvent(hRecvCmdEvent);//3、通知对方查看命令
+				//命令推送到管道
+				PushCommandIntoPipe(hPipe, "reload-bookmarks");
+				//3、通知Daemon查看命令
+				//SetEvent(hRecvCmdEvent);
 			}
 
-			if (WAIT_OBJECT_0 != WaitForSingleObject(hRecvResponseEvent, INFINITE))//4、等待接收Daemon的响应数据
-			{
-				continue;
-			}
+			////4、等待接收Daemon的响应数据
+			//if (WAIT_OBJECT_0 != WaitForSingleObject(hRecvResponseEvent, INFINITE))
+			//{
+			//	continue;
+			//}
 
 			//todo:GetLastError 109
-			BOOL bRet = ReadFile(hPipe, buf, 4095, &readLen, nullptr);
+			std::array<char, 4096> buf = { 0 };
+			DWORD readLen = 0;
+			//BOOL bRet = ReadFile(hPipe, buf.data(), 4096, &readLen, nullptr);
+			uint64_t totalLen = 0;
+			BOOL bRet = ReadFile(hPipe, &totalLen, sizeof(totalLen), &readLen, NULL);
 			if (!bRet || readLen == 0)
 			{
 				continue;
 			}
+			//uint64_t totalLen = _atoi64(buf.data());  // Windows 专用（最稳）
+			//if (totalLen <= 0)
+			//{
+			//	continue;
+			//}
 
+			std::shared_ptr<char[]> spBookMarks(new char[totalLen + 1]());
+
+			uint64_t recvLen = 0;
+			while (recvLen < totalLen)
+			{
+				//todo:最后一次读取这里缓冲区越界，缓冲区不足4096但硬要读4096
+				BOOL bRet = ReadFile(hPipe, spBookMarks.get() + recvLen, 4096, &readLen, nullptr);
+				if (!bRet || readLen == 0)
+				{
+					DWORD dwErr = GetLastError();
+					continue;
+				}
+
+				recvLen += readLen;
+			}
+			spBookMarks[totalLen] = 0;
+
+			hDisconnectPipeEvent = CreateEvent(
+				NULL,
+				FALSE,
+				FALSE,
+				EVENT_NAME_DISCONNECT_PIPE
+			);
+			if (hDisconnectPipeEvent == NULL)
+			{
+				break;
+			}
+			SetEvent(hDisconnectPipeEvent);
 			buf[readLen] = '\0';
 			// 处理收到的 RPC 数据
 			printf("收到: %s\n", buf);
@@ -270,10 +321,10 @@ unsigned __stdcall CommunicateWithDaemon(void* param)
 		CloseHandle(hPipe);
 	} while (0);
 
-	if (hRecvCmdEvent)
+	/*if (hRecvCmdEvent)
 	{
 		CloseHandle(hRecvCmdEvent);
-	}
+	}*/
 
 	if (hCreatePipeEvent)
 	{
@@ -286,10 +337,12 @@ unsigned __stdcall CommunicateWithDaemon(void* param)
 		CloseHandle(hPipe);
 	}
 
-	if (hRecvResponseEvent)
+	/*if (hRecvResponseEvent)
 	{
 		CloseHandle(hRecvResponseEvent);
-	}
+	}*/
+
+	return 0;
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) 

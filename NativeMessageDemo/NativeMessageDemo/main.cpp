@@ -16,18 +16,29 @@ using namespace std;
 
 #define PORT			8899
 #define MAX_BUF_SIZE	4096 * 2
-#define PIPE_NAME_BOOKMARK_COM	L"\\\\.\\pipe\\BookmarkTransPipe"
+#define PIPE_NAME_BOOKMARK_TRANS	L"\\\\.\\pipe\\BookmarkTransPipe"
 #define EVENT_NAME_CONNECT_PIPE	L"{A1418B8A-7998-4262-9D44-47E607653E93}\ConnectPipe"
+#define EVENT_NAME_DISCONNECT_PIPE	L"{4E17318B-F76A-448B-8401-42085E3AC90D}\DisconnectPipe"
 #define EVENT_NAME_SENT_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\SendRecvCmd"
 #define EVENT_NAME_RESPONSE	L"{A7486818-B995-4F67-BA45-834BE0B980EC}\Response"
 
-std::string GetCmdFromRemote()
+std::string GetCmdFromRemote(HANDLE hPipe)
 {
-	//todo:这里暂时写死返回的命令
+	char szRecvCmd[4096] = { 0 };
+	DWORD readLen = 0;
+	//从管道读取命令
+	BOOL bRet = ReadFile(hPipe, szRecvCmd, 4095, &readLen, nullptr);
+	if (!bRet || readLen == 0)
+	{
+		printf(u8"GetCmdFromRemote 读取命令失败\n");
+		return "";
+	}
+
+	printf(u8"GetCmdFromRemote 读取命令成功：%s\n", szRecvCmd);
 	return "reload-bookmarks";
 }
 
-BOOL RecvWebSocketData(SOCKET sock, shared_ptr<char[]> spRecvBuf, int64_t& outLen)
+BOOL RecvWebSocketData(SOCKET sock, shared_ptr<char[]> &spRecvBuf, int64_t& outLen)
 {
 	BYTE header[2];
 	if (SOCKET_ERROR == recv(sock, (char*)header, 2, 0) )
@@ -90,7 +101,9 @@ BOOL RecvWebSocketData(SOCKET sock, shared_ptr<char[]> spRecvBuf, int64_t& outLe
 	}
 
 	spRecvBuf[payloadLen] = 0; // 字符串结束符
-	cout << spRecvBuf << endl;
+	outLen = payloadLen;
+	//暂时不输出
+	//cout << spRecvBuf << endl;
 	return TRUE;
 }
 
@@ -385,51 +398,36 @@ namespace uWS {
 	};
 }
 
-BOOL TransferBookMarksToGUI(std::shared_ptr<char[]> spData, int64_t nDataLen)
+BOOL TransferBookMarksToGUI(HANDLE hPipe, std::shared_ptr<char[]> spData, int64_t nDataLen)
 {
 	HANDLE hConnectPipeEvent = NULL;
 	HANDLE hResponse = NULL;
-	HANDLE hPipe = INVALID_HANDLE_VALUE;
+	printf(u8"调用TransferBookMarksToGUI向GUI发送数据\n");
+	DWORD dwWriteLen = 0;
 	do 
 	{
-		//todo:相互通知创建管道
-		//等待对方创建好管道，得到通知就可以连接
-		printf("尝试连接\n");
-		hConnectPipeEvent = CreateEvent(
-			NULL,
-			FALSE,
-			FALSE,
-			EVENT_NAME_CONNECT_PIPE
-		);
-
-		if (hConnectPipeEvent == NULL) 
+		//todo：这里是封装成一个大的数据包好，还是分两次发送好？
+		std::string sDataLen = std::to_string(nDataLen);
+		//if (!WriteFile(hPipe, sDataLen.c_str(), strlen(sDataLen.c_str()), &dwWriteLen, NULL))
+		if (!WriteFile(hPipe, &nDataLen, sizeof(nDataLen), &dwWriteLen, NULL))
 		{
-			break;
-		}
-
-		//确保管道是已经被创建好了的
-		if (WAIT_OBJECT_0 != WaitForSingleObject(hConnectPipeEvent, INFINITE))
-		{
-			break;
-		}
-
-		hPipe = CreateFile(
-			PIPE_NAME_BOOKMARK_COM,
-			GENERIC_READ | GENERIC_WRITE,
-			0, NULL,
-			OPEN_EXISTING,
-			0, NULL);
-		if (hPipe == INVALID_HANDLE_VALUE) {
+			printf(u8"发送长度写管道失败:%d\n", GetLastError());
+			printf("Write %d %dbytes\n", nDataLen, dwWriteLen);
+			return FALSE;
 			break;
 		}
 
 		//发送数据
-		if (!WriteFile(hPipe, spData.get(), nDataLen, NULL, NULL))
+		if (!WriteFile(hPipe, spData.get(), nDataLen, &dwWriteLen, NULL))
 		{
+			printf(u8"发送数据写管道失败:%d\n", GetLastError());
+			printf("Write %d %dbytes\n", nDataLen, dwWriteLen);
+			return FALSE;
 			break;
 		}
-
-		hResponse = CreateEvent(
+		printf("Write %d %dbytes\n", nDataLen, dwWriteLen);
+		//通知对方可以接收response了
+		/*hResponse = CreateEvent(
 			NULL,
 			FALSE,
 			FALSE,
@@ -439,7 +437,7 @@ BOOL TransferBookMarksToGUI(std::shared_ptr<char[]> spData, int64_t nDataLen)
 		{
 			break;
 		}
-		SetEvent(hResponse);
+		SetEvent(hResponse);*/
 
 		// todo:接收回复，确认这个回复是有必要的吗？
 		/*char buf[4096] = { 0 };
@@ -448,20 +446,20 @@ BOOL TransferBookMarksToGUI(std::shared_ptr<char[]> spData, int64_t nDataLen)
 		printf("服务器回复：%s\n", buf);*/
 	} while (FALSE);
 
-	if (hConnectPipeEvent)
+	/*if (hConnectPipeEvent)
 	{
 		CloseHandle(hConnectPipeEvent);
-	}
+	}*/
 
-	if (hPipe != INVALID_HANDLE_VALUE)
+	/*if (hPipe != INVALID_HANDLE_VALUE)
 	{
 		CloseHandle(hPipe);
-	}
+	}*/
 
-	if (hResponse)
+	/*if (hResponse)
 	{
 		CloseHandle(hResponse);
-	}
+	}*/
 
 	return TRUE;
 }
@@ -475,6 +473,9 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	char szKey[25] = { 0 };
 	char szOutput[29] = { 0 };
 	HANDLE hRecvCmdEvent = NULL;
+	HANDLE hConnectPipeEvent = NULL;
+	HANDLE hDisconnectPipeEvent = NULL;
+	HANDLE hPipe = INVALID_HANDLE_VALUE;
 
 	WSADATA wsa;
 	WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -533,9 +534,9 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	{
 		return 0;
 	}
-	//至此成功建立连接
 
-	hRecvCmdEvent = CreateEvent(
+	//至此成功建立连接
+	/*hRecvCmdEvent = CreateEvent(
 		NULL,
 		FALSE,
 		FALSE,
@@ -545,21 +546,77 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	if (hRecvCmdEvent == NULL)
 	{
 		goto ERROR_POINT;
-	}
+	}*/
 
+	//循环读取发送过来的命令
 	while (TRUE)
 	{
-		//等待外部的命令
-		printf(u8"等待接收GUI的命令\n", PORT);
-		if (WAIT_OBJECT_0 != WaitForSingleObject(hRecvCmdEvent, INFINITE))
-		{
-			goto ERROR_POINT;
-		}
-		printf(u8"等待到接收命令通知\n", PORT);
+		//printf(u8"等待接收GUI的命令\n", PORT);
+		////等待GUI.exe的命令
+		//if (WAIT_OBJECT_0 != WaitForSingleObject(hRecvCmdEvent, INFINITE))
+		//{
+		//	goto ERROR_POINT;
+		//}
+		//printf(u8"等待到接收命令通知\n", PORT);
 
-		//todo：后续改成从管道中读命令
-		if (strcmp(GetCmdFromRemote().c_str(), "reload-bookmarks") == 0)
+
+		//todo:相互通知创建管道
+		//等待对方创建好管道，得到通知就可以连接
+		printf(u8"尝试连接\n");
+		hConnectPipeEvent = CreateEvent(
+			NULL,
+			FALSE,
+			FALSE,
+			EVENT_NAME_CONNECT_PIPE
+		);
+
+		if (hConnectPipeEvent == NULL)
 		{
+			break;
+		}
+
+		//确保管道是已经被创建好了的
+		printf(u8"等待管道连接\n");
+		if (WAIT_OBJECT_0 != WaitForSingleObject(hConnectPipeEvent, INFINITE))
+		{
+			break;
+		}
+		printf(u8"等待到管道连接信号\n");
+		hDisconnectPipeEvent = CreateEvent(
+			NULL,
+			FALSE,
+			FALSE,
+			EVENT_NAME_DISCONNECT_PIPE
+		);
+
+		if (hDisconnectPipeEvent == NULL)
+		{
+			break;
+		}
+
+		// 连接管道（这就是打开管道的意思）
+		printf(u8"打开管道\n");
+		HANDLE hPipe = CreateFile(
+			PIPE_NAME_BOOKMARK_TRANS,                // 管道名称
+			GENERIC_READ | GENERIC_WRITE,  // 可读可写（双向）
+			0,                        // 独占模式（不能共享）
+			NULL,                     // 安全属性
+			OPEN_EXISTING,            // 必须是 OPEN_EXISTING
+			0,                        // 无特殊属性
+			NULL
+		);
+
+		// 判断是否连接成功
+		if (hPipe == INVALID_HANDLE_VALUE)
+		{
+			printf(u8"打开管道失败\n");
+			break;
+		}
+
+		printf(u8"读取管道中的命令\n");
+		if (strcmp(GetCmdFromRemote(hPipe).c_str(), "reload-bookmarks") == 0)
+		{
+			printf(u8"读取到命令：reload-bookmarks\n");
 			if (!SendWebSocketMsg(client, "reload-bookmarks"))
 			{
 				goto ERROR_POINT;
@@ -572,9 +629,27 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 				goto ERROR_POINT;
 			}
 
-			//todo:通信传给GUI.exe
-			TransferBookMarksToGUI(spRecvBuf, nDataLen);
+			//通信传给GUI.exe
+			if (!TransferBookMarksToGUI(hPipe, spRecvBuf, nDataLen))
+			{
+				goto ERROR_POINT;
+			}
 		}
+		else
+		{
+			printf(u8"未读取到其它命令\n");
+		}
+
+		//收到GUI处理完毕的通知才关闭pipe连接
+		printf(u8"等待关闭管道:%d\n", GetLastError());
+		if (WAIT_OBJECT_0 != WaitForSingleObject(hDisconnectPipeEvent, INFINITE))
+		{
+			break;
+		}
+		printf(u8"等待到关闭管道:%d\n", GetLastError());
+
+		CloseHandle(hDisconnectPipeEvent);
+		CloseHandle(hConnectPipeEvent);
 
 		bSucc = TRUE;
 
@@ -587,9 +662,19 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		}
 	}
 	
-	if (hRecvCmdEvent)
+	/*if (hRecvCmdEvent)
 	{
 		CloseHandle(hRecvCmdEvent);
+	}*/
+
+	if (hConnectPipeEvent)
+	{
+		CloseHandle(hConnectPipeEvent);
+	}
+
+	if (hDisconnectPipeEvent)
+	{
+		CloseHandle(hDisconnectPipeEvent);
 	}
 
 	closesocket(client);
