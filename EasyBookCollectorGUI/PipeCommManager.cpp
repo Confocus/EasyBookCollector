@@ -32,7 +32,7 @@ void CPipeCommManager::Run()
 		hPipe = CreateNamedPipe(
 			PIPE_NAME_BOOKMARK_TRANS,
 			PIPE_ACCESS_DUPLEX,
-			PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+			PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, //PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,//PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
 			1, 0, 0, 0, nullptr);
 		if (INVALID_HANDLE_VALUE == hPipe)
 		{
@@ -83,7 +83,7 @@ void CPipeCommManager::Run()
 			DWORD readLen = 0;
 			uint64_t totalLen = 0;
 			BOOL bRet = ReadFile(hPipe, &totalLen, sizeof(totalLen), &readLen, NULL);
-			if (!bRet || readLen == 0)
+			if (!bRet || readLen == 0)//读长度一次就能读完
 			{
 				continue;
 			}
@@ -93,13 +93,13 @@ void CPipeCommManager::Run()
 			while (recvLen < totalLen)
 			{
 				int toReadLen = PIPE_READ_LEN;
-				//todo:最后一次读取这里缓冲区越界，缓冲区不足4096但硬要读4096
 				if (totalLen - recvLen < PIPE_READ_LEN)
 				{
 					toReadLen = totalLen - recvLen;
 				}
+				//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
 				BOOL bRet = ReadFile(hPipe, m_spBookMarks.get() + recvLen, toReadLen, &readLen, nullptr);
-				if (!bRet || readLen == 0)
+				if (readLen == 0)
 				{
 					DWORD dwErr = GetLastError();
 					continue;
@@ -108,7 +108,6 @@ void CPipeCommManager::Run()
 				recvLen += readLen;
 			}
 			m_spBookMarks[totalLen] = 0;
-
 			hDisconnectPipeEvent = CreateEvent(
 				NULL,
 				FALSE,
