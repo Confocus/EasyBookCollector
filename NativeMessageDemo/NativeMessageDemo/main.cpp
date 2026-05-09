@@ -472,7 +472,6 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	char* keyPos = nullptr;
 	char szKey[25] = { 0 };
 	char szOutput[29] = { 0 };
-	HANDLE hRecvCmdEvent = NULL;
 	HANDLE hConnectPipeEvent = NULL;
 	HANDLE hDisconnectPipeEvent = NULL;
 	HANDLE hPipe = INVALID_HANDLE_VALUE;
@@ -535,31 +534,9 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		return 0;
 	}
 
-	//至此成功建立连接
-	/*hRecvCmdEvent = CreateEvent(
-		NULL,
-		FALSE,
-		FALSE,
-		EVENT_NAME_SENT_RECV_CMD
-	);
-
-	if (hRecvCmdEvent == NULL)
-	{
-		goto ERROR_POINT;
-	}*/
-
 	//循环读取发送过来的命令
 	while (TRUE)
 	{
-		//printf(u8"等待接收GUI的命令\n", PORT);
-		////等待GUI.exe的命令
-		//if (WAIT_OBJECT_0 != WaitForSingleObject(hRecvCmdEvent, INFINITE))
-		//{
-		//	goto ERROR_POINT;
-		//}
-		//printf(u8"等待到接收命令通知\n", PORT);
-
-
 		//todo:相互通知创建管道
 		//等待对方创建好管道，得到通知就可以连接
 		printf(u8"尝试连接\n");

@@ -6,7 +6,8 @@
 #pragma comment(lib, "comctl32.lib")  // 链接公共控件库（避免链接错误）
 #define ID_BACK_TO_PARENT	-1
 // 模拟自定义数据（替代本地文件/数据库）
-ItemNode g_szTestNode[] = {
+ItemNode g_szTestNode[] = 
+{
 	// 根节点（parent_id=-1）
 	{1, true, L"我的图书分类", -1, 0, L""},
 	{2, true, L"我的收藏夹", -1, 0, L""},
@@ -23,7 +24,6 @@ ItemNode g_szTestNode[] = {
 	{11, false, L"F++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
-
 };
 unsigned int g_nNodeCount = sizeof(g_szTestNode) / sizeof(ItemNode);
 WNDPROC g_OldListViewProc = NULL;

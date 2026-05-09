@@ -10,7 +10,8 @@
 
 #define CMD_RELOAD_BOOKMARKS	"reload-bookmarks"
 
-CPipeCommManager::CPipeCommManager()
+CPipeCommManager::CPipeCommManager():
+	m_uTotalLen(0)
 {
 	//默认启动时就自带一条加载书签的命令
 	m_qGUICommand.push(CMD_RELOAD_BOOKMARKS);
@@ -81,21 +82,21 @@ void CPipeCommManager::Run()
 			////4、等待接收Daemon的响应数据
 			//todo:GetLastError 109
 			DWORD readLen = 0;
-			uint64_t totalLen = 0;
-			BOOL bRet = ReadFile(hPipe, &totalLen, sizeof(totalLen), &readLen, NULL);
+			
+			BOOL bRet = ReadFile(hPipe, &m_uTotalLen, sizeof(m_uTotalLen), &readLen, NULL);
 			if (!bRet || readLen == 0)//读长度一次就能读完
 			{
 				continue;
 			}
-			m_spBookMarks.reset(new char[totalLen + 1]());
+			m_spBookMarks.reset(new char[m_uTotalLen + 1]());
 
 			uint64_t recvLen = 0;
-			while (recvLen < totalLen)
+			while (recvLen < m_uTotalLen)
 			{
 				int toReadLen = PIPE_READ_LEN;
-				if (totalLen - recvLen < PIPE_READ_LEN)
+				if (m_uTotalLen - recvLen < PIPE_READ_LEN)
 				{
-					toReadLen = totalLen - recvLen;
+					toReadLen = m_uTotalLen - recvLen;
 				}
 				//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
 				BOOL bRet = ReadFile(hPipe, m_spBookMarks.get() + recvLen, toReadLen, &readLen, nullptr);
@@ -107,7 +108,9 @@ void CPipeCommManager::Run()
 
 				recvLen += readLen;
 			}
-			m_spBookMarks[totalLen] = 0;
+			m_spBookMarks[m_uTotalLen] = 0;
+			DumpToFile(m_spBookMarks.get(), m_uTotalLen);//todo:构建树形结构
+
 			hDisconnectPipeEvent = CreateEvent(
 				NULL,
 				FALSE,
@@ -157,4 +160,79 @@ BOOL CPipeCommManager::PushCommandIntoPipe(HANDLE hPipe, const std::string& sCom
 {
 	//todo：后续这里封装和构造发送命令格式
 	return WriteFile(hPipe, sCommand.c_str(), MAX_CMD_LEN, NULL, NULL);
+}
+
+VOID CPipeCommManager::ParseToBookmarkTree()
+{
+	//解析基于如下事实：
+	//1、每条存储信息占一行，由换行键决定
+	//2、文件夹的名称没有/存在 todo：当然我们可以测试下有/存在的文件夹Firefox是怎么处理的
+	//3、同一目录下必须是连续出现的
+	for (int i = 0; i < m_uTotalLen; i++)
+	{
+		uint64_t start = 0;
+		uint64_t end = 0;
+		BOOL bPrasingFolder = TRUE;
+		BOOL bParsingDescription = FALSE;
+		BOOL bParsingWebsite = FALSE;
+		std::string sLastFolderName;
+		std::string sDescription;
+		std::string sWebsite;
+		std::string sFolderName;
+		if (bPrasingFolder == TRUE)
+		{
+			if (m_spBookMarks[i] == '[')
+			{
+				start = i;
+			}
+
+			if (m_spBookMarks[i] == ']')
+			{
+				end = i;
+				sFolderName = std::string(m_spBookMarks.get() + start, m_spBookMarks.get() + end);
+				if (sFolderName != sLastFolderName)
+				{
+					m_spBookMarkTreeRoot->InsertFolder(sFolderName);
+				}
+				sLastFolderName = sFolderName;
+				start = i + 1;
+				bPrasingFolder = FALSE;
+				bParsingDescription = TRUE;
+			}
+		}
+
+		if (bParsingDescription == TRUE)
+		{
+			if (m_spBookMarks[i] == '=' && m_spBookMarks[i + 1] == '>')
+			{
+				end = i - 1;
+				sDescription = Trim(std::string(m_spBookMarks.get() + start, m_spBookMarks.get() + end));
+				start = i + 2;
+				BOOL bParsingWebsite = TRUE;
+				bParsingDescription = FALSE;
+			}
+		}
+
+		if (bParsingWebsite == TRUE)
+		{
+			if (m_spBookMarks[i] == '\n')
+			{
+				end = i;
+				sWebsite = Trim(std::string(m_spBookMarks.get() + start, m_spBookMarks.get() + end));
+				m_spBookMarkTreeRoot->InsertBookInfoUnderFolder(sDescription, sWebsite, sFolderName);
+				bParsingWebsite = FALSE;
+				bPrasingFolder = TRUE;
+			}
+		}
+	}
+}
+
+VOID BookMarksTreeNode::InsertFolder(const std::string)
+{
+
+}
+
+VOID BookMarksTreeNode::InsertBookInfoUnderFolder(const std::string, const std::string, const std::string)
+{
+
 }
