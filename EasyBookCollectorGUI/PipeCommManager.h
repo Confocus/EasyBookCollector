@@ -18,16 +18,35 @@
 class BookMarksTreeNode
 {
 public:
-	VOID InsertFolder(const std::string);
-	VOID InsertBookInfoUnderFolder(const std::string, const std::string, const std::string);
-private:
-	
+	BOOL m_bIsFolder;
+	uint64_t m_uNum;
+	int64_t m_nFatherNum;
+	int64_t m_nSonNum;
+	int64_t m_nSiblingNum;
+	//int64_t m_nLevelNum;
+	uint64_t m_uId;
+	std::wstring m_sDescription;
+	std::wstring m_sName;
+};
+
+class BookMarksTree
+{
+public:
+	BookMarksTree();
+	~BookMarksTree();
+	VOID InsertFolder(const std::wstring);
+	VOID InsertBookInfoUnderFolder(const std::wstring, const std::wstring);
 
 private:
-	std::string sFolderName;//文件夹的名字、自己的名字
-	std::vector<std::string> vecBooks;
-	std::vector<std::shared_ptr<BookMarksTreeNode*>> vecFolders;
-}
+	//int64_t m_uCurrentPointer;//现在遍历到哪个目录了，方便直接插入数据
+	BookMarksTreeNode m_uCurrentNode;
+	std::vector<BookMarksTreeNode> m_vecNodes;
+	std::vector<std::wstring> m_vecLastFolders;//保存上一次操作的文件夹路径序列，便于判断下一次从哪开始插入
+
+	//std::wstring sFolderName;//文件夹的名字、自己的名字
+	//std::vector<std::wstring> vecBooks;
+	//std::vector<std::shared_ptr<BookMarksTree*>> vecFolders;
+};
 
 class CPipeCommManager
 {
@@ -88,17 +107,28 @@ private:
 
 	VOID ParseToBookmarkTree();
 
-	std::string Trim(std::string_view s)
+	std::wstring UTF8ToWString(const char* utf8, int length)
 	{
-		auto l = s.find_first_not_of(" \t\n\r");
-		auto r = s.find_last_not_of(" \t\n\r");
+		if (!utf8 || length <= 0)
+			return {};
+
+		int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8, length, nullptr, 0);
+		std::wstring result(wlen, L'\0');
+		MultiByteToWideChar(CP_UTF8, 0, utf8, length, &result[0], wlen);
+		return result;
+	}
+
+	std::wstring Trim(std::wstring_view s)
+	{
+		auto l = s.find_first_not_of(L" \t\n\r");
+		auto r = s.find_last_not_of(L" \t\n\r");
 		if (l == s.npos) return {};
-		return std::string(s.substr(l, r - l + 1));
+		return std::wstring(s.substr(l, r - l + 1));
 	}
 private:
 	std::queue<std::string> m_qGUICommand;
 	std::mutex m_mutex;
 	std::shared_ptr<char[]> m_spBookMarks;
 	uint64_t m_uTotalLen;
-	std::shared_ptr<BookMarksTreeNode> m_spBookMarkTreeRoot;
+	std::shared_ptr<BookMarksTree> m_spBookMarkTreeRoot;
 };

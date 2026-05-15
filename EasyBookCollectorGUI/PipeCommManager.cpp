@@ -15,6 +15,7 @@ CPipeCommManager::CPipeCommManager():
 {
 	//默认启动时就自带一条加载书签的命令
 	m_qGUICommand.push(CMD_RELOAD_BOOKMARKS);
+	m_spBookMarkTreeRoot = std::make_shared<BookMarksTree>();
 }
 
 CPipeCommManager::~CPipeCommManager()
@@ -110,6 +111,7 @@ void CPipeCommManager::Run()
 			}
 			m_spBookMarks[m_uTotalLen] = 0;
 			DumpToFile(m_spBookMarks.get(), m_uTotalLen);//todo:构建树形结构
+			ParseToBookmarkTree();
 
 			hDisconnectPipeEvent = CreateEvent(
 				NULL,
@@ -164,32 +166,34 @@ BOOL CPipeCommManager::PushCommandIntoPipe(HANDLE hPipe, const std::string& sCom
 
 VOID CPipeCommManager::ParseToBookmarkTree()
 {
+	uint64_t start = 0;
+	uint64_t end = 0;
+	BOOL bPrasingFolder = TRUE;
+	BOOL bParsingDescription = FALSE;
+	BOOL bParsingWebsite = FALSE;
+	std::wstring sLastFolderName;
+	std::wstring sDescription;
+	std::wstring sWebsite;
+	std::wstring sFolderName;
+
+	uint64_t tmpcount = 0;
 	//解析基于如下事实：
 	//1、每条存储信息占一行，由换行键决定
 	//2、文件夹的名称没有/存在 todo：当然我们可以测试下有/存在的文件夹Firefox是怎么处理的
 	//3、同一目录下必须是连续出现的
 	for (int i = 0; i < m_uTotalLen; i++)
 	{
-		uint64_t start = 0;
-		uint64_t end = 0;
-		BOOL bPrasingFolder = TRUE;
-		BOOL bParsingDescription = FALSE;
-		BOOL bParsingWebsite = FALSE;
-		std::string sLastFolderName;
-		std::string sDescription;
-		std::string sWebsite;
-		std::string sFolderName;
 		if (bPrasingFolder == TRUE)
 		{
 			if (m_spBookMarks[i] == '[')
 			{
-				start = i;
+				start = i + 1;
 			}
 
 			if (m_spBookMarks[i] == ']')
 			{
 				end = i;
-				sFolderName = std::string(m_spBookMarks.get() + start, m_spBookMarks.get() + end);
+				sFolderName = UTF8ToWString(m_spBookMarks.get() + start, end - start);
 				if (sFolderName != sLastFolderName)
 				{
 					m_spBookMarkTreeRoot->InsertFolder(sFolderName);
@@ -198,6 +202,7 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 				start = i + 1;
 				bPrasingFolder = FALSE;
 				bParsingDescription = TRUE;
+				continue;
 			}
 		}
 
@@ -206,10 +211,11 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 			if (m_spBookMarks[i] == '=' && m_spBookMarks[i + 1] == '>')
 			{
 				end = i - 1;
-				sDescription = Trim(std::string(m_spBookMarks.get() + start, m_spBookMarks.get() + end));
+				sDescription = Trim(UTF8ToWString(m_spBookMarks.get() + start, end - start));
 				start = i + 2;
-				BOOL bParsingWebsite = TRUE;
+				bParsingWebsite = TRUE;
 				bParsingDescription = FALSE;
+				continue;
 			}
 		}
 
@@ -218,21 +224,131 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 			if (m_spBookMarks[i] == '\n')
 			{
 				end = i;
-				sWebsite = Trim(std::string(m_spBookMarks.get() + start, m_spBookMarks.get() + end));
-				m_spBookMarkTreeRoot->InsertBookInfoUnderFolder(sDescription, sWebsite, sFolderName);
+				sWebsite = Trim(UTF8ToWString(m_spBookMarks.get() + start, end - start));
+				m_spBookMarkTreeRoot->InsertBookInfoUnderFolder(sDescription, sWebsite);
 				bParsingWebsite = FALSE;
 				bPrasingFolder = TRUE;
+			}
+
+			//todo：先暂时不弄太多数据，仅做测试用
+			if (++tmpcount > 100)
+			{
+				break;
 			}
 		}
 	}
 }
 
-VOID BookMarksTreeNode::InsertFolder(const std::string)
+//class BookMarksTreeNode
+//{
+//public:
+//	BOOL m_bIsFolder;
+//	uint64_t m_uNum;
+//	int64_t m_nFatherNum;
+//	int64_t m_nSonNum;
+//	int64_t m_nSiblingNum;
+//	int64_t m_nLevelNum;
+//	uint64_t m_uId;
+//	std::wstring m_sDescription;
+//	std::wstring m_sName;
+//};
+
+
+BookMarksTree::BookMarksTree()
 {
 
 }
 
-VOID BookMarksTreeNode::InsertBookInfoUnderFolder(const std::string, const std::string, const std::string)
+BookMarksTree::~BookMarksTree()
 {
 
+}
+
+//不过这里基于一个事实，就是[]是排好序的
+//[书签菜单] 1
+//[书签菜单 / 2026 / google时政] 1 2 3
+//这里记住上一次的是1 2 3
+//[书签菜单 / 2026 / IT2026 / 安全咨询]1 2 4 5
+//
+//这里记录上次是1 2 4 5
+//这里第一个"书签工具栏"就不匹配。匹配到哪里就从哪里继续插入
+//[书签工具栏 / 书籍 / 20190802]6 7 8
+
+
+VOID BookMarksTree::InsertFolder(const std::wstring s)
+{
+	size_t start = 0;
+	size_t end = s.find(L'/');
+
+	// 循环切割
+	uint64_t uNum = 1;
+	int64_t nFatherNum = -1;
+	std::vector<std::wstring> vecFolders;
+
+ 	while (end != std::wstring::npos)
+	{
+		std::wstring sFolderName = s.substr(start, end - start);
+		// 下一段
+		start = end + 1;
+		end = s.find(L'/', start);
+		vecFolders.push_back(sFolderName);
+	}
+
+	// 最后一段
+	if (start < s.size())
+	{
+		// 截取一段
+		vecFolders.push_back(s.substr(start, end - start));
+	}
+
+	for (auto i = 0; i < vecFolders.size(); i++)
+	{
+		if(i < min(vecFolders.size(), m_vecLastFolders.size()) && vecFolders[i] == m_vecLastFolders[i])
+		{
+			continue;
+		}
+		BookMarksTreeNode node;
+		// 截取一段
+		node.m_bIsFolder = true;
+		node.m_nFatherNum = nFatherNum;
+		node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
+		nFatherNum = node.m_uNum;
+		node.m_sName = vecFolders[i];
+		//node.m_uId = 0;todo：这玩意儿有用吗
+		m_vecNodes.push_back(node);
+		m_uCurrentNode = node;
+	}
+	m_vecLastFolders = vecFolders;
+}
+
+//ItemNode g_szTestNode[] =
+//{
+//	// 根节点（parent_id=-1）
+//	{1, true, L"我的图书分类", -1, 0, L""},
+//	{2, true, L"我的收藏夹", -1, 0, L""},
+//	{3, false, L"临时笔记.txt", -1, 1001, L"这是自定义数据项，不是文件"},
+//	// 图书分类的子节点（parent_id=1）
+//	{4, true, L"编程类", 1, 0, L""},
+//	{5, true, L"小说类", 1, 0, L""},
+//	{6, false, L"Python实战.md", 2, 1002, L"Python入门教程，自定义数据"},
+//	// 编程类的子节点（parent_id=4）
+//	{7, false, L"Java核心技术.md", 4, 1003, L"Java进阶内容，自定义数据"},
+//	{8, false, L"C++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{9, false, L"D++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{10, false, L"E++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{11, false, L"F++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//};
+VOID BookMarksTree::InsertBookInfoUnderFolder(const std::wstring d, const std::wstring s)
+{
+	BookMarksTreeNode node;
+	// 截取一段
+	node.m_bIsFolder = false;
+	node.m_nFatherNum = m_uCurrentNode.m_uNum;
+	node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
+	node.m_sName = s;
+	node.m_sDescription = d;
+	node.m_uId = 0;//todo：这玩意儿有用吗
+	m_vecNodes.push_back(node);
 }

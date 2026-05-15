@@ -34,6 +34,7 @@ CPipeCommManager PipeCommMgr;
 HINSTANCE g_hInstance;                                // 当前实例
 WCHAR szTitle[MAX_LOADSTRING];                  // 标题栏文本
 WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
+#define EVENT_NAME_LOADED_BOOKMARKS	L"{08D7B0CC-08CA-4823-AE7F-55585EC28A5B}\LoadedBookmarks"
 
 
 // 此代码模块中包含的函数的前向声明:
@@ -59,6 +60,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		return TRUE; // 不擦除背景，自己在WM_PAINT里绘制，解决了拖拽Splitter时ListView边缘闪烁的问题
 	case WM_CREATE: 
 	{
+		//todo：这里要改成在解析完数据之后处理
+		HANDLE hDisconnectPipeEvent = CreateEvent(
+			NULL,
+			FALSE,
+			FALSE,
+			EVENT_NAME_LOADED_BOOKMARKS
+		);
+		if (hCreatePipeEvent == NULL)
+		{
+			break;
+		}
+
 		g_ListViewMgr.InitDoubleListViewAndLoadData(hWnd);
 		break;
 	}
