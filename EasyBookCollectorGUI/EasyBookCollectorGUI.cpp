@@ -26,6 +26,7 @@ CMainWindowActions g_MainWndActions;
 CListBoxWndManager g_ListBoxWndMgr;
 //CPipeMgr::CPipeServer g_PipeMgr;测试不同类型的管道用的
 HWND hChildList = NULL;
+//todo:这里改成一个单实例类
 CPipeCommManager PipeCommMgr;
 
 #define MOUSE_LEAVE_MONITOR 2001
@@ -61,18 +62,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_CREATE: 
 	{
 		//todo：这里要改成在解析完数据之后处理
-		HANDLE hDisconnectPipeEvent = CreateEvent(
+		HANDLE hLoadedBookmarksEvent = CreateEvent(
 			NULL,
 			FALSE,
 			FALSE,
 			EVENT_NAME_LOADED_BOOKMARKS
 		);
-		if (hCreatePipeEvent == NULL)
+
+		if (hLoadedBookmarksEvent == NULL)
 		{
+			//todo：如何进行错误处理？
 			break;
 		}
-
+		//todo：这里等待载入的时候，如何显式“载入中……”
+		if (WAIT_OBJECT_0 != WaitForSingleObject(hLoadedBookmarksEvent, INFINITE))
+		{
+			//todo：如何进行错误处理？
+			break;
+		}
 		g_ListViewMgr.InitDoubleListViewAndLoadData(hWnd);
+
+		if (hLoadedBookmarksEvent)
+		{
+			CloseHandle(hLoadedBookmarksEvent);
+		}
 		break;
 	}
 	case WM_SIZING:
@@ -183,6 +196,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	InitCommonControls();
 	if (!MyRegisterClass(hInstance)) return FALSE;
 
+	//这个线程的位置应该往前移，移到创建窗口前面，因为创建窗口事件要等待这里拿到数据
+	HANDLE hThread = (HANDLE)_beginthreadex(0, 0, StartCommManager, (void*)NULL, 0, 0);
+
 	HWND hWnd = CreateWindowW(L"VirtualFolderDemo", L"书籍目录保存",
 		WS_OVERLAPPEDWINDOW , CW_USEDEFAULT, CW_USEDEFAULT, g_ListViewMgr.GetInitMainWndWidth(), 600,//| WS_CLIPCHILDREN
 		NULL, NULL, hInstance, NULL);
@@ -190,8 +206,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
-
-	HANDLE hThread = (HANDLE)_beginthreadex(0, 0, StartCommManager, (void*)NULL, 0, 0);
 
 	MSG msg;
 	while (GetMessageW(&msg, NULL, 0, 0)) {

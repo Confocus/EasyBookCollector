@@ -5,6 +5,8 @@
 #define EVENT_NAME_RESPONSE	L"{A7486818-B995-4F67-BA45-834BE0B980EC}\Response"
 #define EVENT_NAME_CONNECT_PIPE	L"{A1418B8A-7998-4262-9D44-47E607653E93}\ConnectPipe"
 #define EVENT_NAME_DISCONNECT_PIPE	L"{4E17318B-F76A-448B-8401-42085E3AC90D}\DisconnectPipe"
+#define EVENT_NAME_LOADED_BOOKMARKS	L"{08D7B0CC-08CA-4823-AE7F-55585EC28A5B}\LoadedBookmarks"
+
 #define MAX_CMD_LEN	256
 #define PIPE_READ_LEN	4096
 
@@ -15,7 +17,7 @@ CPipeCommManager::CPipeCommManager():
 {
 	//默认启动时就自带一条加载书签的命令
 	m_qGUICommand.push(CMD_RELOAD_BOOKMARKS);
-	m_spBookMarkTreeRoot = std::make_shared<BookMarksTree>();
+	m_spBookMarksMgr = std::make_shared<BookMarksMgr>();
 }
 
 CPipeCommManager::~CPipeCommManager()
@@ -28,7 +30,7 @@ void CPipeCommManager::Run()
 	HANDLE hPipe = INVALID_HANDLE_VALUE;
 	HANDLE hCreatePipeEvent = NULL;
 	HANDLE hDisconnectPipeEvent = NULL;
-
+	HANDLE hLoadedBookmarksEvent = NULL;
 	do
 	{
 		hPipe = CreateNamedPipe(
@@ -89,7 +91,7 @@ void CPipeCommManager::Run()
 			{
 				continue;
 			}
-			m_spBookMarks.reset(new char[m_uTotalLen + 1]());
+			m_spBookMarksData.reset(new char[m_uTotalLen + 1]());
 
 			uint64_t recvLen = 0;
 			while (recvLen < m_uTotalLen)
@@ -100,7 +102,7 @@ void CPipeCommManager::Run()
 					toReadLen = m_uTotalLen - recvLen;
 				}
 				//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
-				BOOL bRet = ReadFile(hPipe, m_spBookMarks.get() + recvLen, toReadLen, &readLen, nullptr);
+				BOOL bRet = ReadFile(hPipe, m_spBookMarksData.get() + recvLen, toReadLen, &readLen, nullptr);
 				if (readLen == 0)
 				{
 					DWORD dwErr = GetLastError();
@@ -109,9 +111,22 @@ void CPipeCommManager::Run()
 
 				recvLen += readLen;
 			}
-			m_spBookMarks[m_uTotalLen] = 0;
-			DumpToFile(m_spBookMarks.get(), m_uTotalLen);//todo:构建树形结构
+			m_spBookMarksData[m_uTotalLen] = 0;
+			DumpToFile(m_spBookMarksData.get(), m_uTotalLen);//todo:构建树形结构
 			ParseToBookmarkTree();
+
+			hLoadedBookmarksEvent = CreateEvent(
+				NULL,
+				FALSE,
+				FALSE,
+				EVENT_NAME_LOADED_BOOKMARKS
+			);
+			if (hLoadedBookmarksEvent == NULL)
+			{
+				//todo：如何进行错误处理？
+				break;
+			}
+			SetEvent(hLoadedBookmarksEvent);
 
 			hDisconnectPipeEvent = CreateEvent(
 				NULL,
@@ -128,6 +143,16 @@ void CPipeCommManager::Run()
 
 		CloseHandle(hPipe);
 	} while (0);
+	
+	if (hLoadedBookmarksEvent)
+	{
+		CloseHandle(hLoadedBookmarksEvent);
+	}
+
+	if (hDisconnectPipeEvent)
+	{
+		CloseHandle(hDisconnectPipeEvent);
+	}
 
 	if (hCreatePipeEvent)
 	{
@@ -138,6 +163,11 @@ void CPipeCommManager::Run()
 	{
 		CloseHandle(hPipe);
 	}
+}
+
+std::vector<BookMarksNode>& CPipeCommManager::GetAllBookMarksNodes()
+{
+	return m_spBookMarksMgr->GetAllBookMarksNodes();
 }
 
 BOOL CPipeCommManager::WaitForCommandFromGUI(std::string& sCommand)
@@ -185,18 +215,18 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 	{
 		if (bPrasingFolder == TRUE)
 		{
-			if (m_spBookMarks[i] == '[')
+			if (m_spBookMarksData[i] == '[')
 			{
 				start = i + 1;
 			}
 
-			if (m_spBookMarks[i] == ']')
+			if (m_spBookMarksData[i] == ']')
 			{
 				end = i;
-				sFolderName = UTF8ToWString(m_spBookMarks.get() + start, end - start);
+				sFolderName = UTF8ToWString(m_spBookMarksData.get() + start, end - start);
 				if (sFolderName != sLastFolderName)
 				{
-					m_spBookMarkTreeRoot->InsertFolder(sFolderName);
+					m_spBookMarksMgr->InsertFolder(sFolderName);
 				}
 				sLastFolderName = sFolderName;
 				start = i + 1;
@@ -208,10 +238,10 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 
 		if (bParsingDescription == TRUE)
 		{
-			if (m_spBookMarks[i] == '=' && m_spBookMarks[i + 1] == '>')
+			if (m_spBookMarksData[i] == '=' && m_spBookMarksData[i + 1] == '>')
 			{
 				end = i - 1;
-				sDescription = Trim(UTF8ToWString(m_spBookMarks.get() + start, end - start));
+				sDescription = Trim(UTF8ToWString(m_spBookMarksData.get() + start, end - start));
 				start = i + 2;
 				bParsingWebsite = TRUE;
 				bParsingDescription = FALSE;
@@ -221,19 +251,18 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 
 		if (bParsingWebsite == TRUE)
 		{
-			if (m_spBookMarks[i] == '\n')
+			if (m_spBookMarksData[i] == '\n')
 			{
 				end = i;
-				sWebsite = Trim(UTF8ToWString(m_spBookMarks.get() + start, end - start));
-				m_spBookMarkTreeRoot->InsertBookInfoUnderFolder(sDescription, sWebsite);
+				sWebsite = Trim(UTF8ToWString(m_spBookMarksData.get() + start, end - start));
+				m_spBookMarksMgr->InsertBookInfoUnderFolder(sDescription, sWebsite);
 				bParsingWebsite = FALSE;
 				bPrasingFolder = TRUE;
-			}
-
-			//todo：先暂时不弄太多数据，仅做测试用
-			if (++tmpcount > 100)
-			{
-				break;
+				//todo：先暂时不弄太多数据，仅做测试用
+				if (++tmpcount > 20)
+				{
+					break;
+				}
 			}
 		}
 	}
@@ -254,12 +283,13 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 //};
 
 
-BookMarksTree::BookMarksTree()
+BookMarksMgr::BookMarksMgr():
+	m_nLastFatherNum(-1)
 {
 
 }
 
-BookMarksTree::~BookMarksTree()
+BookMarksMgr::~BookMarksMgr()
 {
 
 }
@@ -273,16 +303,32 @@ BookMarksTree::~BookMarksTree()
 //这里记录上次是1 2 4 5
 //这里第一个"书签工具栏"就不匹配。匹配到哪里就从哪里继续插入
 //[书签工具栏 / 书籍 / 20190802]6 7 8
-
-
-VOID BookMarksTree::InsertFolder(const std::wstring s)
+//
+//{
+//	// 根节点（parent_id=-1）
+//	{1, true, L"我的图书分类", -1, 0, L""},
+//	{ 2, true, L"我的收藏夹", -1, 0, L"" },
+//	{ 3, false, L"临时笔记.txt", -1, 1001, L"这是自定义数据项，不是文件" },
+//		// 图书分类的子节点（parent_id=1）
+//	{ 4, true, L"编程类", 1, 0, L"" },
+//	{ 5, true, L"小说类", 1, 0, L"" },
+//	{ 6, false, L"Python实战.md", 2, 1002, L"Python入门教程，自定义数据" },
+//		// 编程类的子节点（parent_id=4）
+//	{ 7, false, L"Java核心技术.md", 4, 1003, L"Java进阶内容，自定义数据" },
+//	{ 8, false, L"C++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 9, false, L"D++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 10, false, L"E++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 11, false, L"F++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//};
+VOID BookMarksMgr::InsertFolder(const std::wstring s)
 {
 	size_t start = 0;
 	size_t end = s.find(L'/');
 
 	// 循环切割
 	uint64_t uNum = 1;
-	int64_t nFatherNum = -1;
 	std::vector<std::wstring> vecFolders;
 
  	while (end != std::wstring::npos)
@@ -301,22 +347,53 @@ VOID BookMarksTree::InsertFolder(const std::wstring s)
 		vecFolders.push_back(s.substr(start, end - start));
 	}
 
+	//建立在ListView中显示的文件夹的父子关系
+	uint64_t uSameNodeCnt = 0;
+	for (auto i = 0; i < vecFolders.size(); i++)
+	{
+		if (i < min(vecFolders.size(), m_vecLastFolders.size()) && vecFolders[i] == m_vecLastFolders[i])
+		{
+			uSameNodeCnt++;
+			continue;
+		}
+		break;
+	}
+
+	uint64_t uPopCnt = m_vecLastFolders.size() - uSameNodeCnt;
+	for (int i = 0; i < uPopCnt; i++)
+	{
+		if (!m_vecLastNodes.empty())
+		{
+			m_vecLastNodes.pop_back();
+		}
+	}
+	BookMarksNode LastNode;
+	if (!m_vecLastFolders.empty())
+	{
+		LastNode = m_vecLastNodes.back();
+		m_nLastFatherNum = LastNode.m_uNum;
+		//m_vecLastNodes.clear();//todo：明天验证是不是这里的错
+	}
+
 	for (auto i = 0; i < vecFolders.size(); i++)
 	{
 		if(i < min(vecFolders.size(), m_vecLastFolders.size()) && vecFolders[i] == m_vecLastFolders[i])
 		{
 			continue;
 		}
-		BookMarksTreeNode node;
+		
+		BookMarksNode node;
 		// 截取一段
 		node.m_bIsFolder = true;
-		node.m_nFatherNum = nFatherNum;
+		node.m_nFatherNum = m_nLastFatherNum;
+		//node.m_nFatherNum = LastNode.m_nFatherNum;
 		node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
-		nFatherNum = node.m_uNum;
+		m_nLastFatherNum = node.m_uNum;
 		node.m_sName = vecFolders[i];
 		//node.m_uId = 0;todo：这玩意儿有用吗
 		m_vecNodes.push_back(node);
 		m_uCurrentNode = node;
+		m_vecLastNodes.push_back(node);
 	}
 	m_vecLastFolders = vecFolders;
 }
@@ -340,9 +417,9 @@ VOID BookMarksTree::InsertFolder(const std::wstring s)
 //	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //};
-VOID BookMarksTree::InsertBookInfoUnderFolder(const std::wstring d, const std::wstring s)
+VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring d, const std::wstring s)
 {
-	BookMarksTreeNode node;
+	BookMarksNode node;
 	// 截取一段
 	node.m_bIsFolder = false;
 	node.m_nFatherNum = m_uCurrentNode.m_uNum;
@@ -351,4 +428,9 @@ VOID BookMarksTree::InsertBookInfoUnderFolder(const std::wstring d, const std::w
 	node.m_sDescription = d;
 	node.m_uId = 0;//todo：这玩意儿有用吗
 	m_vecNodes.push_back(node);
+}
+
+std::vector<BookMarksNode>& BookMarksMgr::GetAllBookMarksNodes()
+{
+	return m_vecNodes;
 }

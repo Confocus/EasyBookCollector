@@ -5,6 +5,20 @@
 #include <commctrl.h>  // ListView_SetColumnWidth等宏定义在这里
 #pragma comment(lib, "comctl32.lib")  // 链接公共控件库（避免链接错误）
 #define ID_BACK_TO_PARENT	-1
+
+
+//起初把这个声明包含在ListViewMgr.h文件里会报错
+//ListViewMgr.h 被包含时，CPipeCommManager 类型还没有定义完成。
+//也就是说：
+//#include "PipeCommManager.h"
+//extern CPipeCommManager PipeCommMgr;
+//放在ListViewMgr.cpp时：
+//include 顺序刚好没问题
+//但放在ListViewMgr.h时：
+//触发了头文件循环依赖
+#include "PipeCommManager.h"
+extern CPipeCommManager PipeCommMgr;
+
 // 模拟自定义数据（替代本地文件/数据库）
 ItemNode g_szTestNode[] = 
 {
@@ -84,7 +98,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	m_nInitSplitterY = (m_nInitListViewHeight - m_nInitSplitterWidth) / 2;
 	m_nCurrentHorizontalSplitterY = m_nInitSplitterY;
 	m_nLastSplitterX = m_nInitListViewWidth;
-	// 创建拆分条
+	//创建拆分条
 	//注意，这里的CreateWindows时输入的坐标会被WM_SIZE是MoveWindow的坐标覆盖掉
 	//这里不用计算了
 	m_hVerticalSplitter = CreateWindowW(L"STATIC", L"",
@@ -697,12 +711,34 @@ void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 		//lviBack.iSubItem = 0;
 		ListView_InsertItem(hList, &lvi);
 	}
-
 	// 遍历自定义数据，加载对应节点
-	for (unsigned int i = 0; i < g_nNodeCount; i++)
+	//for (unsigned int i = 0; i < g_nNodeCount; i++)
+	//{
+	//	ItemNode* node = &g_szTestNode[i];
+	//	if (node->nParentId != parent_id)
+	//	{
+	//		continue;
+	//	}
+
+	//	// 插入ListView项
+	//	LVITEMW lvi = { 0 };
+	//	lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
+	//	lvi.iItem = ListView_GetItemCount(hList);
+	//	lvi.pszText = node->szName;
+	//	// 图标：0=文件夹，1=文件
+	//	lvi.iImage = node->bIsFolder ? 0 : 1;
+	//	// 绑定自定义节点ID（关键：双击时识别是哪个节点）
+	//	lvi.lParam = node->nID;
+	//	lvi.iIndent = 1;
+	//	//lvi.iSubItem = 1;
+	//	ListView_InsertItem(hList, &lvi);
+	//}
+	
+	std::vector<BookMarksNode> m_vecNodes = PipeCommMgr.GetAllBookMarksNodes();
+	uint64_t uNodeCount = m_vecNodes.size();
+	for (unsigned int i = 0; i < uNodeCount; i++)
 	{
-		ItemNode* node = &g_szTestNode[i];
-		if (node->nParentId != parent_id)
+		if (m_vecNodes[i].m_nFatherNum != parent_id)
 		{
 			continue;
 		}
@@ -711,11 +747,11 @@ void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 		LVITEMW lvi = { 0 };
 		lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
 		lvi.iItem = ListView_GetItemCount(hList);
-		lvi.pszText = node->szName;
+		lvi.pszText = m_vecNodes[i].m_sName.data();
 		// 图标：0=文件夹，1=文件
-		lvi.iImage = node->bIsFolder ? 0 : 1;
+		lvi.iImage = m_vecNodes[i].m_bIsFolder ? 0 : 1;
 		// 绑定自定义节点ID（关键：双击时识别是哪个节点）
-		lvi.lParam = node->nID;
+		lvi.lParam = m_vecNodes[i].m_uId;
 		lvi.iIndent = 1;
 		//lvi.iSubItem = 1;
 		ListView_InsertItem(hList, &lvi);

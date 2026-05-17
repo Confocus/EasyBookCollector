@@ -2,7 +2,6 @@
 #include <Windows.h>
 #include <commctrl.h>
 #pragma comment(lib, "comctl32.lib")
-
 #define MAX_NAME_LEN 256
 
 // ===================== 自定义数据结构（模拟虚拟文件夹/数据项） =====================
