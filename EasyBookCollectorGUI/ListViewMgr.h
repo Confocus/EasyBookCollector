@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <commctrl.h>
 #pragma comment(lib, "comctl32.lib")
+#include "PipeCommManager.h"
 #define MAX_NAME_LEN 256
 
 // ===================== 自定义数据结构（模拟虚拟文件夹/数据项） =====================
@@ -124,13 +125,14 @@ private:
 	* @return
 	*************************************************************************/
 	BOOL InitImageList();
-	ItemNode* FindVirtualFoldNode(int node_id);
+	//ItemNode* FindVirtualFoldNode(int node_id);
+	std::optional<BookMarksNode> FindVirtualFoldNode(int node_id);
 	void LoadVirtualFolder(HWND hList, int parent_id);
 
 	void ListViewInsertColumn(HWND hWnd);
 
 	//LRESULT CALLBACK ListViewSubProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-	// 3. 初始化ListView的函数（给4个ListView都调用）
+	//初始化ListView的函数（给4个ListView都调用）
 	void InitSingleListView(HWND hListView);
 	
 	void VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, HWND hListView);

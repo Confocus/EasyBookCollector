@@ -47,6 +47,7 @@ public:
 	VOID InsertFolder(const std::wstring);
 	VOID InsertBookInfoUnderFolder(const std::wstring, const std::wstring);
 	std::vector<BookMarksNode>& GetAllBookMarksNodes();
+	uint64_t GetBookMarksCnt();
 private:
 	//int64_t m_uCurrentPointer;//现在遍历到哪个目录了，方便直接插入数据
 	BookMarksNode m_uCurrentNode;
@@ -67,6 +68,7 @@ public:
 
 	void Run();
 	std::vector<BookMarksNode>& GetAllBookMarksNodes();
+	uint64_t GetBookMarksCnt();
 private:
 	BOOL WaitForCommandFromGUI(std::string& sCommand);
 

@@ -11,7 +11,7 @@
 #define PIPE_READ_LEN	4096
 
 #define CMD_RELOAD_BOOKMARKS	"reload-bookmarks"
-
+uint64_t g_uBookMarkNodeId = 1000;
 CPipeCommManager::CPipeCommManager():
 	m_uTotalLen(0)
 {
@@ -170,6 +170,11 @@ std::vector<BookMarksNode>& CPipeCommManager::GetAllBookMarksNodes()
 	return m_spBookMarksMgr->GetAllBookMarksNodes();
 }
 
+uint64_t CPipeCommManager::GetBookMarksCnt()
+{
+	return m_spBookMarksMgr->GetBookMarksCnt();
+}
+
 BOOL CPipeCommManager::WaitForCommandFromGUI(std::string& sCommand)
 {
 	//todo:这里等待，后续修改等待方式
@@ -259,7 +264,7 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 				bParsingWebsite = FALSE;
 				bPrasingFolder = TRUE;
 				//todo：先暂时不弄太多数据，仅做测试用
-				if (++tmpcount > 20)
+				if (++tmpcount > 3)
 				{
 					break;
 				}
@@ -390,14 +395,16 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 		node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
 		m_nLastFatherNum = node.m_uNum;
 		node.m_sName = vecFolders[i];
-		//node.m_uId = 0;todo：这玩意儿有用吗
+		node.m_uId = g_uBookMarkNodeId++;//todo：这玩意儿有用吗
 		m_vecNodes.push_back(node);
 		m_uCurrentNode = node;
 		m_vecLastNodes.push_back(node);
 	}
 	m_vecLastFolders = vecFolders;
 }
-
+//todo：有一种情况下会出错，就是上一次的NativeMessage.exe没结束掉，然后重启GUI.exe，然后再结束掉Native.exe再重启Native.exe在重载Firefox
+// todo：为什么如果不关闭Native.exe，每次启动GUI。exe就可以自动获取到数据？
+// 
 //ItemNode g_szTestNode[] =
 //{
 //	// 根节点（parent_id=-1）
@@ -426,11 +433,16 @@ VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring d, const std::ws
 	node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
 	node.m_sName = s;
 	node.m_sDescription = d;
-	node.m_uId = 0;//todo：这玩意儿有用吗
+	node.m_uId = g_uBookMarkNodeId++;//todo：这玩意儿有用吗
 	m_vecNodes.push_back(node);
 }
 
 std::vector<BookMarksNode>& BookMarksMgr::GetAllBookMarksNodes()
 {
 	return m_vecNodes;
+}
+
+uint64_t BookMarksMgr::GetBookMarksCnt()
+{
+	return m_vecNodes.size();
 }

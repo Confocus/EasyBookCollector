@@ -822,16 +822,56 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 		return;
 	}
 
-	if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的事“返回上一级”
+	//if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的事“返回上一级”
+	//{
+	//	std::optional<signed int> nParentId;
+	//	for (unsigned int i = 0; i < g_nNodeCount; i++)
+	//	{
+	//		ItemNode* node = &g_szTestNode[i];
+	//		if (node->nID == m_nLeftCurrentParent)
+	//		{
+	//			nParentId = node->nParentId;
+	//			m_nLeftCurrentParent = node->nParentId;
+	//			break;
+	//		}
+	//	}
+	//	if (!nParentId.has_value())
+	//	{
+	//		return;
+	//	}
+	//	LoadVirtualFolder(hListView, nParentId.value());
+	//}
+	//else
+	//{
+	//	ItemNode* node = FindVirtualFoldNode(lvItem.lParam);
+	//	if (node && node->bIsFolder)
+	//	{
+	//		// 进入文件夹：更新当前父节点，重新加载
+	//		m_nLeftCurrentParent = node->nID;
+	//		LoadVirtualFolder(hListView, m_nLeftCurrentParent);
+	//	}
+	//	else if (node && !node->bIsFolder)
+	//	{
+	//		// 点击数据项：显示自定义数据
+	//		WCHAR msg[512];
+	//		wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
+	//			node->szName, node->db_id, node->szDesc);
+	//		MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
+	//	}
+	//}
+
+
+	std::vector<BookMarksNode> m_vecNodes = PipeCommMgr.GetAllBookMarksNodes();
+	uint64_t uNodeCount = m_vecNodes.size();
+	if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的是“返回上一级”
 	{
 		std::optional<signed int> nParentId;
-		for (unsigned int i = 0; i < g_nNodeCount; i++)
+		for (unsigned int i = 0; i < uNodeCount; i++)
 		{
-			ItemNode* node = &g_szTestNode[i];
-			if (node->nID == m_nLeftCurrentParent)
+			if (m_vecNodes[i].m_uNum == m_nLeftCurrentParent)
 			{
-				nParentId = node->nParentId;
-				m_nLeftCurrentParent = node->nParentId;
+				nParentId = m_vecNodes[i].m_nFatherNum; 
+				m_nLeftCurrentParent = m_vecNodes[i].m_nFatherNum;
 				break;
 			}
 		}
@@ -843,19 +883,24 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 	}
 	else
 	{
-		ItemNode* node = FindVirtualFoldNode(lvItem.lParam);
-		if (node && node->bIsFolder)
+		std::optional<BookMarksNode> node = FindVirtualFoldNode(lvItem.lParam);
+		if (!node.has_value())
+		{
+			return;
+		}
+
+		if (node->m_bIsFolder)
 		{
 			// 进入文件夹：更新当前父节点，重新加载
-			m_nLeftCurrentParent = node->nID;
+			m_nLeftCurrentParent = node->m_uNum;
 			LoadVirtualFolder(hListView, m_nLeftCurrentParent);
 		}
-		else if (node && !node->bIsFolder)
+		else if (!node->m_bIsFolder)
 		{
 			// 点击数据项：显示自定义数据
 			WCHAR msg[512];
 			wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
-				node->szName, node->db_id, node->szDesc);
+				node->m_sName, node->m_uId, node->m_sDescription);
 			MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
 		}
 	}
@@ -902,14 +947,23 @@ void CListViewMgr::VisitListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARA
 }
 
 // 根据节点ID查找虚拟节点
-ItemNode* CListViewMgr::FindVirtualFoldNode(int node_id)
+//ItemNode* CListViewMgr::FindVirtualFoldNode(int node_id)
+std::optional<BookMarksNode> CListViewMgr::FindVirtualFoldNode(int node_id)
 {
-	for (unsigned int i = 0; i < g_nNodeCount; i++)
+	/*for (unsigned int i = 0; i < g_nNodeCount; i++)
 	{
 		if (g_szTestNode[i].nID == node_id)
 		{
 			return &g_szTestNode[i];
 		}
+	}*/
+	std::vector<BookMarksNode> m_vecNodes = PipeCommMgr.GetAllBookMarksNodes();
+	for (unsigned int i = 0; i < PipeCommMgr.GetBookMarksCnt(); i++)
+	{
+		if (m_vecNodes[i].m_uId == node_id)
+		{
+			return m_vecNodes[i];
+		}
 	}
-	return NULL;
+	return std::nullopt;
 }
