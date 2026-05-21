@@ -4,6 +4,7 @@
 #pragma comment(lib, "comctl32.lib")
 #include "PipeCommManager.h"
 #define MAX_NAME_LEN 256
+#define ID_BACK_TO_PARENT	-1
 
 // ===================== 自定义数据结构（模拟虚拟文件夹/数据项） =====================
 // 虚拟节点：表示文件夹/数据项
@@ -98,14 +99,17 @@ public:
 	const unsigned int GetInitSplitterWidth();
 
 	VOID RecoverRedrawListView();
-	HWND GetLeftListView();
-
 	/**************************************************************************
 	* @brief 处理双击文件夹的操作
 	* @param
 	* @return
 	*************************************************************************/
 	void VisitListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	HWND GetRightListView();
+	HWND GetLeftListView();
+
+	std::optional<BookMarksNode> FindIndexById(uint64_t uid);
 private:
 	CListViewMgr(const CListViewMgr& other);
 	CListViewMgr& operator=(const CListViewMgr& other);
@@ -148,6 +152,7 @@ private:
 	HWND m_hTopRightListView;
 	HWND m_hBottomLeftListView;
 	HWND m_hBottomRightListView;
+	HWND m_hToolTip;
 
 	unsigned int m_nCurrentVerticalSplitterX;	//拖动Splitter时的位置
 	unsigned int m_nCurrentHorizontalSplitterY;	//拖动Splitter时的位置

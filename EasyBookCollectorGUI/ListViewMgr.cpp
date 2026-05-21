@@ -4,8 +4,6 @@
 #include <cmath>    // 用于 double、float、long double 类型的 abs
 #include <commctrl.h>  // ListView_SetColumnWidth等宏定义在这里
 #pragma comment(lib, "comctl32.lib")  // 链接公共控件库（避免链接错误）
-#define ID_BACK_TO_PARENT	-1
-
 
 //起初把这个声明包含在ListViewMgr.h文件里会报错
 //ListViewMgr.h 被包含时，CPipeCommManager 类型还没有定义完成。
@@ -109,7 +107,8 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	m_hLeftListView = CreateWindowW(WC_LISTVIEWW, L"",
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,//| WS_BORDER | WS_CLIPCHILDREN
 		0, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
-	
+	ListView_SetExtendedListViewStyle(m_hLeftListView, LVS_EX_INFOTIP);
+
 	ListView_SetImageList(m_hLeftListView, m_hImageList, LVSIL_SMALL);
 	ListViewInsertColumn(m_hLeftListView);
 	// 初始化左面板列（仅显示名称，模拟文件夹列表）
@@ -118,10 +117,31 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	m_hRightListView = CreateWindowW(WC_LISTVIEWW, L"",
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
 		m_nInitSplitterX + m_nInitSplitterWidth, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
+	ListView_SetExtendedListViewStyle(m_hRightListView, LVS_EX_INFOTIP);
 
 	ListView_SetImageList(m_hRightListView, m_hImageList, LVSIL_SMALL);
 	ListViewInsertColumn(m_hRightListView);
 	LoadVirtualFolder(m_hRightListView, g_right_current_parent);
+
+	//m_hToolTip = CreateWindow(
+	//	TOOLTIPS_CLASS,
+	//	NULL,
+	//	WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+	//	CW_USEDEFAULT, CW_USEDEFAULT,
+	//	CW_USEDEFAULT, CW_USEDEFAULT,
+	//	hWnd, NULL, GetModuleHandle(NULL), NULL
+	//);
+
+	//// 绑定到 ListView
+	//TOOLINFO ti = { 0 };
+	//ti.cbSize = sizeof(TOOLINFO);
+	//ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+	//ti.hwnd = m_hLeftListView;
+	//ti.uId = (UINT_PTR)m_hLeftListView;
+	//ti.lpszText = LPSTR_TEXTCALLBACK;  // 动态获取文字
+
+	//SendMessage(m_hToolTip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+	//SendMessage(m_hToolTip, TTM_SETDELAYTIME, TTDT_INITIAL, 200);  // 悬浮多久后弹出
 
 	return TRUE;
 }
@@ -751,6 +771,7 @@ void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 		// 图标：0=文件夹，1=文件
 		lvi.iImage = m_vecNodes[i].m_bIsFolder ? 0 : 1;
 		// 绑定自定义节点ID（关键：双击时识别是哪个节点）
+		//这里保存u_Id是必要的，否则无法点进文件夹
 		lvi.lParam = m_vecNodes[i].m_uId;
 		lvi.iIndent = 1;
 		//lvi.iSubItem = 1;
@@ -936,6 +957,12 @@ HWND CListViewMgr::GetLeftListView()
 	return m_hLeftListView;
 }
 
+std::optional<BookMarksNode> CListViewMgr::FindIndexById(uint64_t uid)
+{
+	std::shared_ptr<BookMarksMgr> spBookMarksMgr =  PipeCommMgr.GetBookMarksMgrPointer();
+	return spBookMarksMgr->FindIndexById(uid);
+}
+
 void CListViewMgr::VisitListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	NMHDR* pNMHDR = (NMHDR*)lParam;
@@ -944,6 +971,11 @@ void CListViewMgr::VisitListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARA
 	{
 		VisitSubListViewFolder(hWnd, msg, wParam, lParam, pNMHDR->hwndFrom);
 	}
+}
+
+HWND CListViewMgr::GetRightListView()
+{
+	return m_hRightListView;
 }
 
 // 根据节点ID查找虚拟节点

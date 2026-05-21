@@ -1,7 +1,4 @@
-﻿// EasyBookCollectorGUI.cpp : 定义应用程序的入口点。
-//
-
-#include "framework.h"
+﻿#include "framework.h"
 
 #include <vector>
 #include <string>
@@ -124,7 +121,57 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 	case WM_NOTIFY: // 处理ListView双击（核心：进入虚拟文件夹）
 	{
-		g_ListViewMgr.VisitListViewFolder(hWnd, msg, wParam, lParam);
+		NMHDR* pNMHDR = (NMHDR*)lParam;
+		if (pNMHDR->code == NM_DBLCLK)
+		{
+			g_ListViewMgr.VisitListViewFolder(hWnd, msg, wParam, lParam);
+		}
+		else if (pNMHDR->code == LVN_GETINFOTIP)
+		{
+			NMLVGETINFOTIP* pTip = (NMLVGETINFOTIP*)lParam;
+
+			if (pNMHDR->hwndFrom == g_ListViewMgr.GetLeftListView())
+			{
+				//LVITEM item = { 0 };
+				//item.mask = LVIF_TEXT;
+				//item.iItem = pTip->iItem;
+				//item.iSubItem = 0;   // 第一列
+				//item.pszText = pTip->pszText;
+				//item.cchTextMax = pTip->cchTextMax;
+				NMLVGETINFOTIP* pTip = (NMLVGETINFOTIP*)lParam;
+				int index = pTip->iItem;
+				LVITEM lvi = { 0 };
+				lvi.mask = LVIF_PARAM;   // 只取 lParam
+				lvi.iItem = index;
+				ListView_GetItem(g_ListViewMgr.GetLeftListView(), &lvi);
+
+				// 直接强转成你的 ID 类型
+				UINT uId = (UINT)lvi.lParam;
+				if (ID_BACK_TO_PARENT != lvi.lParam)
+				{
+					//todo：检查这里的算法是否正确，看看uid是否和vector下标匹配，看看uid不基于1000计算是否可以
+					std::optional<BookMarksNode> node = g_ListViewMgr.FindIndexById(lvi.lParam);
+					if (!node.has_value())
+					{
+						break;
+					}
+
+					swprintf_s(
+						pTip->pszText,
+						pTip->cchTextMax,
+						L"名称：%ws\r\n描述：%ws",
+						node->m_sName.c_str(),
+						node->m_sDescription.c_str());
+				}
+				
+			}
+			else if (pNMHDR->hwndFrom == g_ListViewMgr.GetRightListView())
+			{
+				wsprintf(pTip->pszText,
+					L"右侧 ListView：第 %d 项",
+					pTip->iItem);
+			}
+		}
 		break;
 	}
 
@@ -203,6 +250,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		WS_OVERLAPPEDWINDOW , CW_USEDEFAULT, CW_USEDEFAULT, g_ListViewMgr.GetInitMainWndWidth(), 600,//| WS_CLIPCHILDREN
 		NULL, NULL, hInstance, NULL);
 	if (!hWnd) return FALSE;
+	//ListView_SetExtendedListViewStyle(hWnd, LVS_EX_INFOTIP);
 
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);

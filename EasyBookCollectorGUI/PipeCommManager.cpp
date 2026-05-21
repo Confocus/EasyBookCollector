@@ -11,7 +11,7 @@
 #define PIPE_READ_LEN	4096
 
 #define CMD_RELOAD_BOOKMARKS	"reload-bookmarks"
-uint64_t g_uBookMarkNodeId = 1000;
+uint64_t g_uBookMarkNodeId = 0;
 CPipeCommManager::CPipeCommManager():
 	m_uTotalLen(0)
 {
@@ -175,6 +175,11 @@ uint64_t CPipeCommManager::GetBookMarksCnt()
 	return m_spBookMarksMgr->GetBookMarksCnt();
 }
 
+std::shared_ptr<BookMarksMgr>& CPipeCommManager::GetBookMarksMgrPointer()
+{
+	return m_spBookMarksMgr;
+}
+
 BOOL CPipeCommManager::WaitForCommandFromGUI(std::string& sCommand)
 {
 	//todo:这里等待，后续修改等待方式
@@ -207,8 +212,8 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 	BOOL bParsingDescription = FALSE;
 	BOOL bParsingWebsite = FALSE;
 	std::wstring sLastFolderName;
-	std::wstring sDescription;
-	std::wstring sWebsite;
+	std::wstring sWebsiteName;
+	std::wstring sWebsiteDes;
 	std::wstring sFolderName;
 
 	uint64_t tmpcount = 0;
@@ -246,7 +251,7 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 			if (m_spBookMarksData[i] == '=' && m_spBookMarksData[i + 1] == '>')
 			{
 				end = i - 1;
-				sDescription = Trim(UTF8ToWString(m_spBookMarksData.get() + start, end - start));
+				sWebsiteName = Trim(UTF8ToWString(m_spBookMarksData.get() + start, end - start));
 				start = i + 2;
 				bParsingWebsite = TRUE;
 				bParsingDescription = FALSE;
@@ -259,12 +264,12 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 			if (m_spBookMarksData[i] == '\n')
 			{
 				end = i;
-				sWebsite = Trim(UTF8ToWString(m_spBookMarksData.get() + start, end - start));
-				m_spBookMarksMgr->InsertBookInfoUnderFolder(sDescription, sWebsite);
+				sWebsiteDes = Trim(UTF8ToWString(m_spBookMarksData.get() + start, end - start));
+				m_spBookMarksMgr->InsertBookInfoUnderFolder(sWebsiteName, sWebsiteDes);
 				bParsingWebsite = FALSE;
 				bPrasingFolder = TRUE;
 				//todo：先暂时不弄太多数据，仅做测试用
-				if (++tmpcount > 3)
+				if (++tmpcount > 55)
 				{
 					break;
 				}
@@ -377,6 +382,10 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 	{
 		LastNode = m_vecLastNodes.back();
 		m_nLastFatherNum = LastNode.m_uNum;
+		//避免下一次遍历的目录比上一次遍历的目录短的情况出现，比如：
+		//[书签菜单/2026/IT2026/前沿科学]
+		//[书签菜单/2026/IT2026]
+		m_uCurrentNode = LastNode;
 		//m_vecLastNodes.clear();//todo：明天验证是不是这里的错
 	}
 
@@ -424,15 +433,15 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 //	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //};
-VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring d, const std::wstring s)
+VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des)
 {
 	BookMarksNode node;
 	// 截取一段
 	node.m_bIsFolder = false;
 	node.m_nFatherNum = m_uCurrentNode.m_uNum;
 	node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
-	node.m_sName = s;
-	node.m_sDescription = d;
+	node.m_sName = name;
+	node.m_sDescription = des;
 	node.m_uId = g_uBookMarkNodeId++;//todo：这玩意儿有用吗
 	m_vecNodes.push_back(node);
 }
@@ -445,4 +454,16 @@ std::vector<BookMarksNode>& BookMarksMgr::GetAllBookMarksNodes()
 uint64_t BookMarksMgr::GetBookMarksCnt()
 {
 	return m_vecNodes.size();
+}
+
+std::optional<BookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
+{
+	auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const BookMarksNode& item) {
+		return item.m_uId == uid;
+		});
+
+	if (it == m_vecNodes.end())
+		return std::nullopt; // 没找到
+
+	return *it;
 }
