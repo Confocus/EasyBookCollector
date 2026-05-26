@@ -108,6 +108,8 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,//| WS_BORDER | WS_CLIPCHILDREN
 		0, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
 	ListView_SetExtendedListViewStyle(m_hLeftListView, LVS_EX_INFOTIP);
+	DragAcceptFiles(m_hLeftListView, TRUE);
+
 
 	ListView_SetImageList(m_hLeftListView, m_hImageList, LVSIL_SMALL);
 	ListViewInsertColumn(m_hLeftListView);
@@ -118,6 +120,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
 		m_nInitSplitterX + m_nInitSplitterWidth, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
 	ListView_SetExtendedListViewStyle(m_hRightListView, LVS_EX_INFOTIP);
+	DragAcceptFiles(m_hRightListView, TRUE);
 
 	ListView_SetImageList(m_hRightListView, m_hImageList, LVSIL_SMALL);
 	ListViewInsertColumn(m_hRightListView);

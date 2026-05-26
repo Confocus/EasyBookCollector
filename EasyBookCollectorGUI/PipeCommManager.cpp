@@ -261,37 +261,24 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 
 		if (bParsingWebsite == TRUE)
 		{
-			if (m_spBookMarksData[i] == '\n')
+			if (m_spBookMarksData[i] == '\n' || i == m_uTotalLen - 1)//最后一行没有换行符
 			{
 				end = i;
-				sWebsiteDes = Trim(UTF8ToWString(m_spBookMarksData.get() + start, end - start));
+				uint64_t length = end - start;
+				if (i == m_uTotalLen - 1)
+				{
+					length = end - start + 1;
+				}
+				sWebsiteDes = Trim(UTF8ToWString(m_spBookMarksData.get() + start, length));
 				m_spBookMarksMgr->InsertBookInfoUnderFolder(sWebsiteName, sWebsiteDes);
 				bParsingWebsite = FALSE;
 				bPrasingFolder = TRUE;
-				//todo：先暂时不弄太多数据，仅做测试用
-				if (++tmpcount > 55)
-				{
-					break;
-				}
+				//todo：分析手动改变FireFox中书签的顺序是否有影响
+				//todo：如果GUI崩溃了，再启动GUI是否可以直接连接上Native
 			}
 		}
 	}
 }
-
-//class BookMarksTreeNode
-//{
-//public:
-//	BOOL m_bIsFolder;
-//	uint64_t m_uNum;
-//	int64_t m_nFatherNum;
-//	int64_t m_nSonNum;
-//	int64_t m_nSiblingNum;
-//	int64_t m_nLevelNum;
-//	uint64_t m_uId;
-//	std::wstring m_sDescription;
-//	std::wstring m_sName;
-//};
-
 
 BookMarksMgr::BookMarksMgr():
 	m_nLastFatherNum(-1)
@@ -341,6 +328,7 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 	uint64_t uNum = 1;
 	std::vector<std::wstring> vecFolders;
 
+	//拆分目录例如“书签菜单/理财/股票”保存进vector
  	while (end != std::wstring::npos)
 	{
 		std::wstring sFolderName = s.substr(start, end - start);
@@ -359,6 +347,7 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 
 	//建立在ListView中显示的文件夹的父子关系
 	uint64_t uSameNodeCnt = 0;
+	//寻找最短的公共路径
 	for (auto i = 0; i < vecFolders.size(); i++)
 	{
 		if (i < min(vecFolders.size(), m_vecLastFolders.size()) && vecFolders[i] == m_vecLastFolders[i])
@@ -369,26 +358,33 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 		break;
 	}
 
-	uint64_t uPopCnt = m_vecLastFolders.size() - uSameNodeCnt;
-	for (int i = 0; i < uPopCnt; i++)
+	//如果两个vector有公共的文件夹
+	if (uSameNodeCnt != 0)
 	{
-		if (!m_vecLastNodes.empty())
+		uint64_t uPopCnt = m_vecLastFolders.size() - uSameNodeCnt;
+		for (int i = 0; i < uPopCnt; i++)
 		{
-			m_vecLastNodes.pop_back();
+			if (!m_vecLastNodes.empty())
+			{
+				m_vecLastNodes.pop_back();
+			}
+		}
+		BookMarksNode LastNode;
+		if (!m_vecLastFolders.empty())
+		{
+			LastNode = m_vecLastNodes.back();
+			m_nLastFatherNum = LastNode.m_uNum;
+			//避免下一次遍历的目录比上一次遍历的目录短的情况出现，比如：
+			//[书签菜单/2026/IT2026/前沿科学]
+			//[书签菜单/2026/IT2026]
+			m_uCurrentNode = LastNode;//todo：这句貌似没有用
 		}
 	}
-	BookMarksNode LastNode;
-	if (!m_vecLastFolders.empty())
+	else//说明没有公共路径，那就重新以根节点为根目录
 	{
-		LastNode = m_vecLastNodes.back();
-		m_nLastFatherNum = LastNode.m_uNum;
-		//避免下一次遍历的目录比上一次遍历的目录短的情况出现，比如：
-		//[书签菜单/2026/IT2026/前沿科学]
-		//[书签菜单/2026/IT2026]
-		m_uCurrentNode = LastNode;
-		//m_vecLastNodes.clear();//todo：明天验证是不是这里的错
+		m_nLastFatherNum = -1;
 	}
-
+	
 	for (auto i = 0; i < vecFolders.size(); i++)
 	{
 		if(i < min(vecFolders.size(), m_vecLastFolders.size()) && vecFolders[i] == m_vecLastFolders[i])
@@ -404,7 +400,7 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 		node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
 		m_nLastFatherNum = node.m_uNum;
 		node.m_sName = vecFolders[i];
-		node.m_uId = g_uBookMarkNodeId++;//todo：这玩意儿有用吗
+		node.m_uId = g_uBookMarkNodeId++;
 		m_vecNodes.push_back(node);
 		m_uCurrentNode = node;
 		m_vecLastNodes.push_back(node);

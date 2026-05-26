@@ -250,7 +250,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		WS_OVERLAPPEDWINDOW , CW_USEDEFAULT, CW_USEDEFAULT, g_ListViewMgr.GetInitMainWndWidth(), 600,//| WS_CLIPCHILDREN
 		NULL, NULL, hInstance, NULL);
 	if (!hWnd) return FALSE;
-	//ListView_SetExtendedListViewStyle(hWnd, LVS_EX_INFOTIP);
+	DragAcceptFiles(hWnd, TRUE);
 
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
