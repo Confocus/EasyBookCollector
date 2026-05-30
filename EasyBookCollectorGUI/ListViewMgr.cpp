@@ -2,9 +2,7 @@
 #include <optional>
 #include <cstdlib>
 #include <cmath>    // 用于 double、float、long double 类型的 abs
-#include <commctrl.h>  // ListView_SetColumnWidth等宏定义在这里
-#pragma comment(lib, "comctl32.lib")  // 链接公共控件库（避免链接错误）
-
+#include "DropTarget.h"
 //起初把这个声明包含在ListViewMgr.h文件里会报错
 //ListViewMgr.h 被包含时，CPipeCommManager 类型还没有定义完成。
 //也就是说：
@@ -108,6 +106,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,//| WS_BORDER | WS_CLIPCHILDREN
 		0, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
 	ListView_SetExtendedListViewStyle(m_hLeftListView, LVS_EX_INFOTIP);
+	RegisterDragDrop(m_hLeftListView, (IDropTarget*)new CDropTarget());
 	DragAcceptFiles(m_hLeftListView, TRUE);
 
 
@@ -120,6 +119,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
 		m_nInitSplitterX + m_nInitSplitterWidth, 0, m_nInitListViewWidth, m_nInitListViewHeight, hWnd, NULL, GetModuleHandle(NULL), NULL);
 	ListView_SetExtendedListViewStyle(m_hRightListView, LVS_EX_INFOTIP);
+	RegisterDragDrop(m_hRightListView, (IDropTarget*)new CDropTarget());
 	DragAcceptFiles(m_hRightListView, TRUE);
 
 	ListView_SetImageList(m_hRightListView, m_hImageList, LVSIL_SMALL);
@@ -417,6 +417,16 @@ VOID CListViewMgr::SetDraggingStopStatus()
 
 VOID CListViewMgr::Destory()
 {
+	if (m_hLeftListView)
+	{
+		RevokeDragDrop(m_hLeftListView);
+	}
+
+	if (m_hRightListView)
+	{
+		RevokeDragDrop(m_hRightListView);
+	}
+
 	if (m_hTopLeftListView)
 	{
 		DestroyWindow(m_hTopLeftListView);
@@ -985,13 +995,6 @@ HWND CListViewMgr::GetRightListView()
 //ItemNode* CListViewMgr::FindVirtualFoldNode(int node_id)
 std::optional<BookMarksNode> CListViewMgr::FindVirtualFoldNode(int node_id)
 {
-	/*for (unsigned int i = 0; i < g_nNodeCount; i++)
-	{
-		if (g_szTestNode[i].nID == node_id)
-		{
-			return &g_szTestNode[i];
-		}
-	}*/
 	std::vector<BookMarksNode> m_vecNodes = PipeCommMgr.GetAllBookMarksNodes();
 	for (unsigned int i = 0; i < PipeCommMgr.GetBookMarksCnt(); i++)
 	{

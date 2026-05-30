@@ -265,7 +265,7 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 			{
 				end = i;
 				uint64_t length = end - start;
-				if (i == m_uTotalLen - 1)
+				if (i == m_uTotalLen - 1)//单独处理文本的最后一行，因为最后一行没有换行符
 				{
 					length = end - start + 1;
 				}
@@ -377,7 +377,7 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 			//避免下一次遍历的目录比上一次遍历的目录短的情况出现，比如：
 			//[书签菜单/2026/IT2026/前沿科学]
 			//[书签菜单/2026/IT2026]
-			m_uCurrentNode = LastNode;//todo：这句貌似没有用
+			m_uCurrentNode = LastNode;
 		}
 	}
 	else//说明没有公共路径，那就重新以根节点为根目录

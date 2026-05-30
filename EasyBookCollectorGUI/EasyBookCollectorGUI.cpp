@@ -15,6 +15,13 @@
 #include <array>
 #include "PipeCommManager.h"
 
+#include <commctrl.h>
+#include <ole2.h>
+#include <shlobj.h>
+
+#pragma comment(lib, "ole32.lib")
+//#pragma comment(lib, "commctrl.lib")
+
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 BOOL g_bIsTrackRegistered = FALSE;
@@ -206,6 +213,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 
 	case WM_DESTROY: {
+		OleUninitialize();
 		g_ListViewMgr.Destory();
 		PostQuitMessage(0);
 		break;
@@ -241,6 +249,8 @@ unsigned __stdcall StartCommManager(void* param)
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) 
 {
 	InitCommonControls();
+	OleInitialize(NULL);
+
 	if (!MyRegisterClass(hInstance)) return FALSE;
 
 	//这个线程的位置应该往前移，移到创建窗口前面，因为创建窗口事件要等待这里拿到数据
@@ -250,7 +260,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		WS_OVERLAPPEDWINDOW , CW_USEDEFAULT, CW_USEDEFAULT, g_ListViewMgr.GetInitMainWndWidth(), 600,//| WS_CLIPCHILDREN
 		NULL, NULL, hInstance, NULL);
 	if (!hWnd) return FALSE;
-	DragAcceptFiles(hWnd, TRUE);
+
+	//DragAcceptFiles(hWnd, TRUE);//todo：这个可能没必要
 
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
