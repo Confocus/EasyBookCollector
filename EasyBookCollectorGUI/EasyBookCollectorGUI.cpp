@@ -139,12 +139,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 			if (pNMHDR->hwndFrom == g_ListViewMgr.GetLeftListView())
 			{
-				//LVITEM item = { 0 };
-				//item.mask = LVIF_TEXT;
-				//item.iItem = pTip->iItem;
-				//item.iSubItem = 0;   // 第一列
-				//item.pszText = pTip->pszText;
-				//item.cchTextMax = pTip->cchTextMax;
 				NMLVGETINFOTIP* pTip = (NMLVGETINFOTIP*)lParam;
 				int index = pTip->iItem;
 				LVITEM lvi = { 0 };
@@ -250,6 +244,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 {
 	InitCommonControls();
 	OleInitialize(NULL);
+
+	INITCOMMONCONTROLSEX icex = {};
+	icex.dwSize = sizeof(icex);
+	icex.dwICC = ICC_LISTVIEW_CLASSES;
+	InitCommonControlsEx(&icex);
 
 	if (!MyRegisterClass(hInstance)) return FALSE;
 

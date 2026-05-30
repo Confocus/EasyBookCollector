@@ -83,8 +83,18 @@ CListViewMgr::~CListViewMgr()
 
 BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 {
+	SHFILEINFOW sfi = { 0 };
+
+	HIMAGELIST hSysImageList = (HIMAGELIST)SHGetFileInfoW(
+		L"C:\\Windows",
+		FILE_ATTRIBUTE_DIRECTORY,
+		&sfi,
+		sizeof(sfi),
+		SHGFI_SYSICONINDEX | SHGFI_SMALLICON
+	);
+
+	//InitImageList();
 	// 初始化图标列表
-	InitImageList();
 	RECT rcClient;
 	GetClientRect(hWnd, &rcClient);
 	m_nInitListViewHeight = rcClient.bottom - rcClient.top; // 父窗口完整高度
@@ -114,6 +124,8 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	ListViewInsertColumn(m_hLeftListView);
 	// 初始化左面板列（仅显示名称，模拟文件夹列表）
 	LoadVirtualFolder(m_hLeftListView, m_nLeftCurrentParent);
+	ListView_SetImageList(m_hLeftListView, hSysImageList, LVSIL_SMALL);
+
 	//// 创建右面板ListView
 	m_hRightListView = CreateWindowW(WC_LISTVIEWW, L"",
 		WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
@@ -125,7 +137,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 	ListView_SetImageList(m_hRightListView, m_hImageList, LVSIL_SMALL);
 	ListViewInsertColumn(m_hRightListView);
 	LoadVirtualFolder(m_hRightListView, g_right_current_parent);
-
+	ListView_SetImageList(m_hRightListView, hSysImageList, LVSIL_SMALL);
 	//m_hToolTip = CreateWindow(
 	//	TOOLTIPS_CLASS,
 	//	NULL,
@@ -672,57 +684,57 @@ BOOL CListViewMgr::TogglePanelMode(HWND hWnd)
 
 BOOL CListViewMgr::InitImageList() 
 {
-	m_hImageList = ImageList_Create(
-		16, 16, //创建一个 16×16 像素
-		ILC_COLOR32 | ILC_MASK,//32 位真彩色带透明通道
-		2, //初始可存 2 个图标
-		0);//无自动扩容 的图像列表，用于存放你后续添加的文件夹 / 文件通用图标。
-	if (m_hImageList == NULL) {
-		//wprintf(L"ImageList_Create 失败！错误码：%d\n", GetLastError());
-		return FALSE;
-	}
+	
+	
+	
+	//int cx = GetSystemMetrics(SM_CXSMICON);
+	//int cy = GetSystemMetrics(SM_CYSMICON);
 
-	SHFILEINFOW sfi = { 0 };
+	//m_hImageList = ImageList_Create(
+	//	16, 16, //创建一个 16×16 像素
+	//	ILC_COLOR32 | ILC_MASK,//32 位真彩色带透明通道//
+	//	2, //初始可存 2 个图标
+	//	0);//无自动扩容 的图像列表，用于存放你后续添加的文件夹 / 文件通用图标。
+	//if (m_hImageList == NULL) 
+	//{
+	//	return FALSE;
+	//}
 
-	// 添加文件夹图标
-	//todo:有没有其它方式优化？
-	SHGetFileInfoW(
-		L"D:\\Tools",//todo:这里改下获取图标的方式； 
-		FILE_ATTRIBUTE_DIRECTORY, &sfi, sizeof(sfi),
-		SHGFI_ICON | SHGSI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
-	//把 SHGetFileInfoW 返回的文件夹小图标句柄（sfi.hIcon）添加到图像列表中；
-	//作用：后续你可以通过图像列表的索引（比如 0）来使用这个文件夹图标（比如给 ListView / TreeView 控件设置图标）。
-	int nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
-	DestroyIcon(sfi.hIcon);
+	//SHFILEINFOW sfi = { 0 };
 
-	// 添加文件图标
-	//todo:有没有其它方式优化？
-	SHGetFileInfoW(L"*.txt", FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi),
-		SHGFI_ICON | SHGSI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
-	nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
-	DestroyIcon(sfi.hIcon);
+	//// 添加文件夹图标
+	////todo:有没有其它方式优化？
+	//SHGetFileInfoW(
+	//	L"D:\\Tools",//todo:这里改下获取图标的方式； 
+	//	FILE_ATTRIBUTE_DIRECTORY, &sfi, sizeof(sfi),
+	//	SHGFI_ICON | SHGSI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
+	////把 SHGetFileInfoW 返回的文件夹小图标句柄（sfi.hIcon）添加到图像列表中；
+	////作用：后续你可以通过图像列表的索引（比如 0）来使用这个文件夹图标（比如给 ListView / TreeView 控件设置图标）。
+	//int nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
+	////int nFolderIconIndex = ImageList_ReplaceIcon(m_hImageList, -1, sfi.hIcon);
 
-	//todo:有没有其它方式优化？
-	SHGetFileInfoW(
-		L"D:\\Tools",
-		FILE_ATTRIBUTE_DIRECTORY,
-		&sfi,
-		sizeof(sfi),
-		SHGFI_ICON | SHGSI_SMALLICON | SHGFI_OPENICON
-	);
-	nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
-	DestroyIcon(sfi.hIcon);
-	/*SHSTOCKICONINFO sii{};
-	sii.cbSize = sizeof(sii);
+	//DestroyIcon(sfi.hIcon);
 
-	if (SHGetStockIconInfo(SIID_FOLDEROPEN,
-		SHGSI_ICON | SHGSI_SMALLICON,
-		&sii) != S_OK)
-	{
-		return FALSE;
-	}
-	nFolderIconIndex = ImageList_AddIcon(m_hImageList, sii.hIcon);
-	DestroyIcon(sii.hIcon);*/
+	//// 添加文件图标
+	////todo:有没有其它方式优化？
+	//SHGetFileInfoW(L"*.txt", FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi),
+	//	SHGFI_ICON | SHGSI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
+	//nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
+	////nFolderIconIndex = ImageList_ReplaceIcon(m_hImageList, -1, sfi.hIcon);
+
+	//DestroyIcon(sfi.hIcon);
+
+	////todo:有没有其它方式优化？
+	//SHGetFileInfoW(
+	//	L"D:\\Tools",
+	//	FILE_ATTRIBUTE_DIRECTORY,
+	//	&sfi,
+	//	sizeof(sfi),
+	//	SHGFI_ICON | SHGSI_SMALLICON | SHGFI_OPENICON
+	//);
+	//nFolderIconIndex = ImageList_AddIcon(m_hImageList, sfi.hIcon);
+
+	//DestroyIcon(sfi.hIcon);
 
 	return TRUE;
 }
@@ -730,43 +742,29 @@ BOOL CListViewMgr::InitImageList()
 // 加载指定父节点下的所有虚拟节点到ListView
 void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 {
-	// 清空列表
 	ListView_DeleteAllItems(hList);
 	if (parent_id != -1) // 不是根目录的时候，显示“返回上一级”
 	{
+		SHFILEINFOW sfi = { 0 };
 		LVITEMW lvi = { 0 };
 		lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;
-		lvi.iItem = 0; 
-		lvi.pszText = const_cast<WCHAR*>(L"返回上一级..."); 
-		lvi.iImage = 2; 
+		lvi.iItem = 0;
+		lvi.pszText = const_cast<WCHAR*>(L"返回上一级...");
+		lvi.iImage = 2;
 		lvi.lParam = ID_BACK_TO_PARENT; // 绑定专属ID，用于识别点击
 		lvi.iIndent = 1; // 无缩进（根级显示）
 		//lviBack.iSubItem = 0;
+		SHGetFileInfoW(
+			L"D:\\Tools",
+			FILE_ATTRIBUTE_NORMAL,
+			&sfi,
+			sizeof(sfi),
+			SHGFI_SYSICONINDEX | SHGFI_SMALLICON
+		);
+		lvi.iImage = sfi.iIcon;
 		ListView_InsertItem(hList, &lvi);
 	}
-	// 遍历自定义数据，加载对应节点
-	//for (unsigned int i = 0; i < g_nNodeCount; i++)
-	//{
-	//	ItemNode* node = &g_szTestNode[i];
-	//	if (node->nParentId != parent_id)
-	//	{
-	//		continue;
-	//	}
 
-	//	// 插入ListView项
-	//	LVITEMW lvi = { 0 };
-	//	lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
-	//	lvi.iItem = ListView_GetItemCount(hList);
-	//	lvi.pszText = node->szName;
-	//	// 图标：0=文件夹，1=文件
-	//	lvi.iImage = node->bIsFolder ? 0 : 1;
-	//	// 绑定自定义节点ID（关键：双击时识别是哪个节点）
-	//	lvi.lParam = node->nID;
-	//	lvi.iIndent = 1;
-	//	//lvi.iSubItem = 1;
-	//	ListView_InsertItem(hList, &lvi);
-	//}
-	
 	std::vector<BookMarksNode> m_vecNodes = PipeCommMgr.GetAllBookMarksNodes();
 	uint64_t uNodeCount = m_vecNodes.size();
 	for (unsigned int i = 0; i < uNodeCount; i++)
@@ -775,7 +773,7 @@ void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 		{
 			continue;
 		}
-
+		SHFILEINFOW sfi = { 0 };
 		// 插入ListView项
 		LVITEMW lvi = { 0 };
 		lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
@@ -788,8 +786,60 @@ void CListViewMgr::LoadVirtualFolder(HWND hList, int parent_id)
 		lvi.lParam = m_vecNodes[i].m_uId;
 		lvi.iIndent = 1;
 		//lvi.iSubItem = 1;
+		const wchar_t* pszPath = NULL;
+		pszPath = (lvi.iImage == 0) ? L"D:\\Tools" : L"D:\\Tools\\test.txt";
+
+		SHGetFileInfoW(
+			pszPath,
+			FILE_ATTRIBUTE_NORMAL,
+			&sfi,
+			sizeof(sfi),
+			SHGFI_SYSICONINDEX | SHGFI_SMALLICON
+		);
+		lvi.iImage = sfi.iIcon;
 		ListView_InsertItem(hList, &lvi);
 	}
+
+	
+
+	//// 清空列表
+	//ListView_DeleteAllItems(hList);
+	//if (parent_id != -1) // 不是根目录的时候，显示“返回上一级”
+	//{
+	//	LVITEMW lvi = { 0 };
+	//	lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;
+	//	lvi.iItem = 0; 
+	//	lvi.pszText = const_cast<WCHAR*>(L"返回上一级..."); 
+	//	lvi.iImage = 2; 
+	//	lvi.lParam = ID_BACK_TO_PARENT; // 绑定专属ID，用于识别点击
+	//	lvi.iIndent = 1; // 无缩进（根级显示）
+	//	//lviBack.iSubItem = 0;
+	//	ListView_InsertItem(hList, &lvi);
+	//}
+	//
+	//std::vector<BookMarksNode> m_vecNodes = PipeCommMgr.GetAllBookMarksNodes();
+	//uint64_t uNodeCount = m_vecNodes.size();
+	//for (unsigned int i = 0; i < uNodeCount; i++)
+	//{
+	//	if (m_vecNodes[i].m_nFatherNum != parent_id)
+	//	{
+	//		continue;
+	//	}
+
+	//	// 插入ListView项
+	//	LVITEMW lvi = { 0 };
+	//	lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
+	//	lvi.iItem = ListView_GetItemCount(hList);
+	//	lvi.pszText = m_vecNodes[i].m_sName.data();
+	//	// 图标：0=文件夹，1=文件
+	//	lvi.iImage = m_vecNodes[i].m_bIsFolder ? 0 : 1;
+	//	// 绑定自定义节点ID（关键：双击时识别是哪个节点）
+	//	//这里保存u_Id是必要的，否则无法点进文件夹
+	//	lvi.lParam = m_vecNodes[i].m_uId;
+	//	lvi.iIndent = 1;
+	//	//lvi.iSubItem = 1;
+	//	ListView_InsertItem(hList, &lvi);
+	//}
 }
 
 void CListViewMgr::ListViewInsertColumn(HWND hWnd)
@@ -855,45 +905,6 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 	{
 		return;
 	}
-
-	//if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的事“返回上一级”
-	//{
-	//	std::optional<signed int> nParentId;
-	//	for (unsigned int i = 0; i < g_nNodeCount; i++)
-	//	{
-	//		ItemNode* node = &g_szTestNode[i];
-	//		if (node->nID == m_nLeftCurrentParent)
-	//		{
-	//			nParentId = node->nParentId;
-	//			m_nLeftCurrentParent = node->nParentId;
-	//			break;
-	//		}
-	//	}
-	//	if (!nParentId.has_value())
-	//	{
-	//		return;
-	//	}
-	//	LoadVirtualFolder(hListView, nParentId.value());
-	//}
-	//else
-	//{
-	//	ItemNode* node = FindVirtualFoldNode(lvItem.lParam);
-	//	if (node && node->bIsFolder)
-	//	{
-	//		// 进入文件夹：更新当前父节点，重新加载
-	//		m_nLeftCurrentParent = node->nID;
-	//		LoadVirtualFolder(hListView, m_nLeftCurrentParent);
-	//	}
-	//	else if (node && !node->bIsFolder)
-	//	{
-	//		// 点击数据项：显示自定义数据
-	//		WCHAR msg[512];
-	//		wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
-	//			node->szName, node->db_id, node->szDesc);
-	//		MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
-	//	}
-	//}
-
 
 	std::vector<BookMarksNode> m_vecNodes = PipeCommMgr.GetAllBookMarksNodes();
 	uint64_t uNodeCount = m_vecNodes.size();
