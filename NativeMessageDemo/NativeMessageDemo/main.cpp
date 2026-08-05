@@ -485,7 +485,7 @@ BOOL SendAndRecvCommandInner(SOCKET client, HANDLE hPipe, std::string_view comma
 {
 	//todo：校验comand参数的合法性
 	printf("读取到命令：%s\n",command.data());
-	if (!SendWebSocketMsg(client, STRING_RELOAD_BOOKMARKS))
+	if (!SendWebSocketMsg(client, command.data()))
 	{
 		return FALSE;
 	}

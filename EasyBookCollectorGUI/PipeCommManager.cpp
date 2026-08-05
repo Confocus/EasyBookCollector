@@ -7,7 +7,7 @@
 
 uint64_t g_uBookMarkNodeId = 0;
 CPipeCommManager::CPipeCommManager():
-	m_uTotalLen(0)
+	m_uTotalDataLen(0)
 	//m_hDisconnectPipeEvent(NULL)
 {
 	//默认启动时就自带一条加载书签的命令
@@ -84,48 +84,18 @@ void CPipeCommManager::Run()
 			}
 			//todo：连续几次之后这里发送获取书签命令但是没有拿到书签数据
 			
-			
-			//等待接收Daemon的响应数据
-			DWORD readLen = 0;
-			
-			BOOL bRet = ReadFile(hPipe, &m_uTotalLen, sizeof(m_uTotalLen), &readLen, NULL);
-			if (!bRet || readLen == 0)//读长度一次就能读完
-			{
-				continue;
-			}
-			m_spBookMarksData.reset(new char[m_uTotalLen + 1]());
-
-			uint64_t recvLen = 0;
-			while (recvLen < m_uTotalLen)
-			{
-				int toReadLen = PIPE_READ_LEN;
-				if (m_uTotalLen - recvLen < PIPE_READ_LEN)
-				{
-					toReadLen = m_uTotalLen - recvLen;
-				}
-				//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
-				BOOL bRet = ReadFile(hPipe, m_spBookMarksData.get() + recvLen, toReadLen, &readLen, nullptr);
-				if (readLen == 0)
-				{
-					DWORD dwErr = GetLastError();
-					continue;
-				}
-
-				recvLen += readLen;
-			}
-			m_spBookMarksData[m_uTotalLen] = 0;
-			DumpToFile(m_spBookMarksData.get(), m_uTotalLen);//todo:构建树形结构
-
 			switch (ConvertCmdToUid(sCommand))
 			{
 				//todo：获取当前激活的Tab的页面信息
 			case UID_ADD_ACTIVE_TAB:
 			{
+				ReadActiveTabInfoFromPipe(hPipe);
 				//todo：获得新的书签，插入书签然后重新Reload或者Reparse
 				break;
 			}
 			case UID_RELOAD_BOOKMARKS:
 			{
+				ReadBookMarksFromPipe(hPipe);
 				ParseToBookmarkTree();
 				break;
 			}
@@ -206,6 +176,78 @@ BOOL CPipeCommManager::WriteCommandIntoPipe(HANDLE hPipe, const std::string& sCo
 	return WriteFile(hPipe, sCommand.c_str(), MAX_CMD_LEN, NULL, NULL);
 }
 
+//todo：这里把读取操作抽象出来
+BOOL CPipeCommManager::ReadActiveTabInfoFromPipe(HANDLE hPipe)
+{
+	//等待接收Daemon的响应数据
+	DWORD readLen = 0;
+	DWORD dwTotalLen = 0;
+	BOOL bRet = ReadFile(hPipe, &m_uTotalDataLen, sizeof(m_uTotalDataLen), &readLen, NULL);
+	if (!bRet || readLen == 0)//读长度一次就能读完
+	{
+		return FALSE;
+	}
+	m_spBookMarksData.reset(new char[m_uTotalDataLen + 1]());
+
+	uint64_t recvLen = 0;
+	while (recvLen < m_uTotalDataLen)
+	{
+		int toReadLen = PIPE_READ_LEN;
+		if (m_uTotalDataLen - recvLen < PIPE_READ_LEN)
+		{
+			toReadLen = m_uTotalDataLen - recvLen;
+		}
+		//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
+		BOOL bRet = ReadFile(hPipe, m_spBookMarksData.get() + recvLen, toReadLen, &readLen, nullptr);
+		if (readLen == 0)
+		{
+			DWORD dwErr = GetLastError();
+			continue;
+		}
+
+		recvLen += readLen;
+	}
+	m_spBookMarksData[m_uTotalDataLen] = 0;
+	DumpToFile(m_spBookMarksData.get(), m_uTotalDataLen);//todo:构建树形结构
+
+	return TRUE;
+}
+
+BOOL CPipeCommManager::ReadBookMarksFromPipe(HANDLE hPipe)
+{
+	//等待接收Daemon的响应数据
+	DWORD readLen = 0;
+
+	BOOL bRet = ReadFile(hPipe, &m_uTotalDataLen, sizeof(m_uTotalDataLen), &readLen, NULL);
+	if (!bRet || readLen == 0)//读长度一次就能读完
+	{
+		return FALSE;
+	}
+	m_spBookMarksData.reset(new char[m_uTotalDataLen + 1]());
+
+	uint64_t recvLen = 0;
+	while (recvLen < m_uTotalDataLen)
+	{
+		int toReadLen = PIPE_READ_LEN;
+		if (m_uTotalDataLen - recvLen < PIPE_READ_LEN)
+		{
+			toReadLen = m_uTotalDataLen - recvLen;
+		}
+		//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
+		BOOL bRet = ReadFile(hPipe, m_spBookMarksData.get() + recvLen, toReadLen, &readLen, nullptr);
+		if (readLen == 0)
+		{
+			DWORD dwErr = GetLastError();
+			continue;
+		}
+
+		recvLen += readLen;
+	}
+	m_spBookMarksData[m_uTotalDataLen] = 0;
+	DumpToFile(m_spBookMarksData.get(), m_uTotalDataLen);//todo:构建树形结构
+	return TRUE;
+}
+
 //todo：如果是一个空文件夹，不会传递过来
 //
 VOID CPipeCommManager::ParseToBookmarkTree()
@@ -225,11 +267,11 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 	//1、每条存储信息占一行，由换行键决定
 	//2、文件夹的名称没有/存在 todo：当然我们可以测试下有/存在的文件夹Firefox是怎么处理的
 	//3、同一目录下必须是连续出现的
-	if (m_uTotalLen < 1000)
+	if (m_uTotalDataLen < 1000)
 	{
 		printf("%s", m_spBookMarksData.get());
 	}
-	for (int i = 0; i < m_uTotalLen; i++)
+	for (int i = 0; i < m_uTotalDataLen; i++)
 	{
 		if (bPrasingFolder == TRUE)
 		{
@@ -269,11 +311,11 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 
 		if (bParsingWebsite == TRUE)
 		{
-			if (m_spBookMarksData[i] == '\n' || i == m_uTotalLen - 1)//最后一行没有换行符
+			if (m_spBookMarksData[i] == '\n' || i == m_uTotalDataLen - 1)//最后一行没有换行符
 			{
 				end = i;
 				uint64_t length = end - start;
-				if (i == m_uTotalLen - 1)//单独处理文本的最后一行，因为最后一行没有换行符
+				if (i == m_uTotalDataLen - 1)//单独处理文本的最后一行，因为最后一行没有换行符
 				{
 					length = end - start + 1;
 				}

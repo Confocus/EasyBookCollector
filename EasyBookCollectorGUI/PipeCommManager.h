@@ -122,7 +122,8 @@ private:
 		// 关闭文件
 		fclose(fp);
 	}
-
+	BOOL ReadActiveTabInfoFromPipe(HANDLE hPipe);
+	BOOL ReadBookMarksFromPipe(HANDLE hPipe);
 	VOID ParseToBookmarkTree();
 	BOOL Disconnect();
 
@@ -159,8 +160,9 @@ private:
 	//HANDLE m_hDisconnectPipeEvent;
 	std::queue<std::string> m_qGUICommand;
 	std::mutex m_mutex;
+	std::shared_ptr<char[]> m_spActiveTabInfo;
 	std::shared_ptr<char[]> m_spBookMarksData;
-	uint64_t m_uTotalLen;
+	uint64_t m_uTotalDataLen;
 	std::shared_ptr<BookMarksMgr> m_spBookMarksMgr;
 	//保存从命令行string到uid的转换
 	std::map<std::string_view, unsigned int> m_mCmdUid;

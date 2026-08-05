@@ -93,27 +93,37 @@ async function sendBookmarksToExe() {
 }
 
 async function getActiveTabInfo() {
-    const [activeTab] = await browser.tabs.query({active: true, currentWindow: true});
-    return activeTab;
+    const tabData = await getSavedBlurTab();
+            // 转为JSON字符串发送
+            ws.send(JSON.stringify({
+                type: "before_switch_tab",
+                data: tabData
+            }));
 }
 
-async function sendActiveTabInfoToExe() {
-    console.log("sendActiveTabInfoToExe start");
+// async function getRecordTab() {
+//     return await browser.runtime.sendMessage({
+//         action: "getBeforeBlurTab"
+//     });
+// }
 
-    try {
-        // 获取书签
-        let tabInfo = await getActiveTabInfo();
-        console.log("✅ 准备发送tabInfo数据，长度：", tabInfo.length);
+// async function sendActiveTabInfoToExe() {
+//     console.log("sendActiveTabInfoToExe start");
 
-        // --- WebSocket 直接发送！一行搞定！---
-        ws.send(tabInfo);
+//     try {
+//         // 获取书签
+//         let tabInfo = await getActiveTabInfo();
+//         console.log("✅ 准备发送tabInfo数据，长度：", tabInfo.length);
 
-        console.log("✅ tabInfo已发送到 EXE！");
+//         // --- WebSocket 直接发送！一行搞定！---
+//         ws.send(tabInfo);
 
-    } catch (err) {
-        console.error("❌ tabInfo发送失败：", err);
-    }
-}
+//         console.log("✅ tabInfo已发送到 EXE！");
+
+//     } catch (err) {
+//         console.error("❌ tabInfo发送失败：", err);
+//     }
+// }
 
 let ws;
 
@@ -141,7 +151,7 @@ function startListen() {
         if(cmd == "AddActiveTab")
         {
             console.log("🔄 获取activeTab信息");
-            sendActiveTabInfoToExe();
+            getActiveTabInfo();
         }
         if (cmd === "retry") {
             console.log("🔄 retry");
@@ -165,5 +175,6 @@ function startListen() {
     };
 }
 
+initTabBlurRecorder();
 // 启动！
 startListen();
