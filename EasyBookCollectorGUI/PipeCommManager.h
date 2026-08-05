@@ -124,7 +124,7 @@ private:
 	}
 
 	VOID ParseToBookmarkTree();
-	BOOL DisconnectPipe();
+	BOOL Disconnect();
 
 	std::wstring UTF8ToWString(const char* utf8, int length)
 	{

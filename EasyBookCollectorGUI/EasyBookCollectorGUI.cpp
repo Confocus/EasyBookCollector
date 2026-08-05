@@ -40,7 +40,6 @@ CPipeCommManager g_PipeCommMgr;
 HINSTANCE g_hInstance;                                // 当前实例
 WCHAR szTitle[MAX_LOADSTRING];                  // 标题栏文本
 WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
-#define EVENT_NAME_CMD_FINISHED	L"{08D7B0CC-08CA-4823-AE7F-55585EC28A5B}\LoadedBookmarks"
 
 
 // 此代码模块中包含的函数的前向声明:
@@ -72,7 +71,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			NULL,
 			FALSE,
 			FALSE,
-			EVENT_NAME_CMD_FINISHED
+			EVENT_NAME_LOADED_BOOKMARKS
 		);
 
 		if (hLoadedBookmarksEvent == NULL)

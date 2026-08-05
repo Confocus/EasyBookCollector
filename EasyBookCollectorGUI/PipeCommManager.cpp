@@ -1,12 +1,6 @@
 #include "PipeCommManager.h"
 #include "framework.h"
 
-#define PIPE_NAME_BOOKMARK_TRANS	L"\\\\.\\pipe\\BookmarkTransPipe"
-#define EVENT_NAME_SENT_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\SendRecvCmd"
-#define EVENT_NAME_RESPONSE	L"{A7486818-B995-4F67-BA45-834BE0B980EC}\Response"
-#define EVENT_NAME_CONNECT_PIPE	L"{A1418B8A-7998-4262-9D44-47E607653E93}\ConnectPipe"
-#define EVENT_NAME_DISCONNECT_PIPE	L"{4E17318B-F76A-448B-8401-42085E3AC90D}\DisconnectPipe"
-#define EVENT_NAME_CMD_FINISHED	L"{08D7B0CC-08CA-4823-AE7F-55585EC28A5B}\LoadedBookmarks"
 
 #define MAX_CMD_LEN	256
 #define PIPE_READ_LEN	4096
@@ -135,10 +129,10 @@ void CPipeCommManager::Run()
 				ParseToBookmarkTree();
 				break;
 			}
-			case UID_DISCONNECT_PIPE:
+			case UID_DISCONNECT:
 			{
 				//这里发送断开链接的命令
-				DisconnectPipe();//这里不break还得执行下边的清理操作
+				Disconnect();//这里不break还得执行下边的清理操作
 			}
 			}
 
@@ -293,9 +287,24 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 			}
 		}
 	}
+
+	HANDLE hLoadedBookmarksEvent = CreateEvent(
+		NULL,
+		FALSE,
+		FALSE,
+		EVENT_NAME_LOADED_BOOKMARKS
+	);
+
+	if (hLoadedBookmarksEvent == NULL)
+	{
+		//todo：如何进行错误处理？
+		return;
+	}
+
+	SetEvent(hLoadedBookmarksEvent);
 }
 
-BOOL CPipeCommManager::DisconnectPipe()
+BOOL CPipeCommManager::Disconnect()
 {
 	/*m_hDisconnectPipeEvent = CreateEvent(
 		NULL,
