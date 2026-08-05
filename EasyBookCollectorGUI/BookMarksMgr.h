@@ -1,0 +1,51 @@
+#pragma once
+#include "framework.h"
+
+class BookMarksNode
+{
+public:
+	BookMarksNode() :
+		m_bIsFolder(TRUE),
+		m_uNum(0),
+		m_nFatherNum(-1),
+		m_uId(0)
+	{
+
+	}
+	~BookMarksNode()
+	{
+
+	}
+public:
+	BOOL m_bIsFolder;
+	uint64_t m_uNum;
+	int64_t m_nFatherNum;
+	/*int64_t m_nSonNum;
+	int64_t m_nSiblingNum;*/
+	//int64_t m_nLevelNum;
+	uint64_t m_uId;
+	std::wstring m_sDescription;
+	std::wstring m_sName;
+};
+
+class BookMarksMgr
+{
+public:
+	BookMarksMgr();
+	~BookMarksMgr();
+	VOID InsertFolder(const std::wstring);
+	VOID InsertBookInfoUnderFolder(const std::wstring, const std::wstring);
+	std::vector<BookMarksNode>& GetAllBookMarksNodes();
+	uint64_t GetBookMarksCnt();
+	std::optional<BookMarksNode> FindIndexById(uint64_t uid);
+private:
+	//int64_t m_uCurrentPointer;//现在遍历到哪个目录了，方便直接插入数据
+	BookMarksNode m_uCurrentNode;
+	std::vector<BookMarksNode> m_vecNodes;
+	std::vector<BookMarksNode> m_vecLastNodes;
+	std::vector<std::wstring> m_vecLastFolders;//保存上一次操作的文件夹路径序列，便于判断下一次从哪开始插入
+	int64_t m_nLastFatherNum;
+	//std::wstring sFolderName;//文件夹的名字、自己的名字
+	//std::vector<std::wstring> vecBooks;
+	//std::vector<std::shared_ptr<BookMarksTree*>> vecFolders;
+};

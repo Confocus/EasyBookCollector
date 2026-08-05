@@ -21,6 +21,7 @@ using namespace std;
 #define EVENT_NAME_DISCONNECT_PIPE	L"{4E17318B-F76A-448B-8401-42085E3AC90D}\DisconnectPipe"
 #define EVENT_NAME_SENT_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\SendRecvCmd"
 #define EVENT_NAME_RESPONSE	L"{A7486818-B995-4F67-BA45-834BE0B980EC}\Response"
+#define EVENT_NAME_CMD_FINISHED	L"{08D7B0CC-08CA-4823-AE7F-55585EC28A5B}\LoadedBookmarks"
 
 #define STRING_RELOAD_BOOKMARKS	"reload-bookmarks"
 #define UID_RELOAD_BOOKMARKS	1
@@ -514,7 +515,7 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	char szKey[25] = { 0 };
 	char szOutput[29] = { 0 };
 	HANDLE hConnectPipeEvent = NULL;
-	HANDLE hDisconnectPipeEvent = NULL;
+	HANDLE hCmdFinishedEvent = NULL;
 	HANDLE hPipe = INVALID_HANDLE_VALUE;
 
 	setlocale(LC_ALL, "chs");
@@ -584,62 +585,62 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		return 0;
 	}
 
+	//todo:相互通知创建管道
+		//等待对方创建好管道，得到通知就可以连接
+	printf("尝试连接\n");
+	hConnectPipeEvent = CreateEvent(
+		NULL,
+		FALSE,
+		FALSE,
+		EVENT_NAME_CONNECT_PIPE
+	);
+
+	if (hConnectPipeEvent == NULL)
+	{
+		return 0;
+	}
+
+	//确保管道是已经被创建好了的
+	printf("等待管道连接\n");
+	if (WAIT_OBJECT_0 != WaitForSingleObject(hConnectPipeEvent, INFINITE))
+	{
+		return 0;
+	}
+	printf("等待到管道连接信号\n");
+
+	hCmdFinishedEvent = CreateEvent(
+		NULL,
+		FALSE,//自动重置Event
+		FALSE,
+		EVENT_NAME_CMD_FINISHED
+	);
+
+	if (hCmdFinishedEvent == NULL)
+	{
+		return 0;
+	}
+
+	// 连接管道（这就是打开管道的意思）
+	printf("打开管道\n");
+	hPipe = CreateFile(
+		PIPE_NAME_BOOKMARK_TRANS,                // 管道名称
+		GENERIC_READ | GENERIC_WRITE,  // 可读可写（双向）
+		0,                        // 独占模式（不能共享）
+		NULL,                     // 安全属性
+		OPEN_EXISTING,            // 必须是 OPEN_EXISTING
+		0,                        // 无特殊属性
+		NULL
+	);
+
+	// 判断是否连接成功
+	if (hPipe == INVALID_HANDLE_VALUE)
+	{
+		printf("打开管道失败\n");
+		return 0;
+	}
 	//循环读取发送过来的命令
 	while (TRUE)
 	{
-		//todo:相互通知创建管道
-		//等待对方创建好管道，得到通知就可以连接
-		printf("尝试连接\n");
-		hConnectPipeEvent = CreateEvent(
-			NULL,
-			FALSE,
-			FALSE,
-			EVENT_NAME_CONNECT_PIPE
-		);
-
-		if (hConnectPipeEvent == NULL)
-		{
-			break;
-		}
-
-		//确保管道是已经被创建好了的
-		printf("等待管道连接\n");
-		if (WAIT_OBJECT_0 != WaitForSingleObject(hConnectPipeEvent, INFINITE))
-		{
-			break;
-		}
-		printf("等待到管道连接信号\n");
-		hDisconnectPipeEvent = CreateEvent(
-			NULL,
-			FALSE,
-			FALSE,
-			EVENT_NAME_DISCONNECT_PIPE
-		);
-
-		if (hDisconnectPipeEvent == NULL)
-		{
-			break;
-		}
-
-		// 连接管道（这就是打开管道的意思）
-		printf("打开管道\n");
-		HANDLE hPipe = CreateFile(
-			PIPE_NAME_BOOKMARK_TRANS,                // 管道名称
-			GENERIC_READ | GENERIC_WRITE,  // 可读可写（双向）
-			0,                        // 独占模式（不能共享）
-			NULL,                     // 安全属性
-			OPEN_EXISTING,            // 必须是 OPEN_EXISTING
-			0,                        // 无特殊属性
-			NULL
-		);
-
-		// 判断是否连接成功
-		if (hPipe == INVALID_HANDLE_VALUE)
-		{
-			printf("打开管道失败\n");
-			break;
-		}
-
 		printf("读取管道中的命令\n");
 		std::string command = GetCmdFromRemote(hPipe);
 		if (!SendAndRecvCommandInner(client, hPipe, command))
@@ -649,14 +650,14 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 
 		//收到GUI处理完毕的通知才关闭pipe连接
 		printf("等待关闭管道:%d\n", GetLastError());
-		if (WAIT_OBJECT_0 != WaitForSingleObject(hDisconnectPipeEvent, INFINITE))
+		if (WAIT_OBJECT_0 != WaitForSingleObject(hCmdFinishedEvent, INFINITE))
 		{
 			break;
 		}
 		printf("等待到关闭管道:%d\n", GetLastError());
 
-		CloseHandle(hDisconnectPipeEvent);
-		CloseHandle(hConnectPipeEvent);
+		//CloseHandle(hCmdFinishedEvent);
+		//CloseHandle(hConnectPipeEvent);
 
 		bSucc = TRUE;
 
@@ -679,9 +680,9 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		CloseHandle(hConnectPipeEvent);
 	}
 
-	if (hDisconnectPipeEvent)
+	if (hCmdFinishedEvent)
 	{
-		CloseHandle(hDisconnectPipeEvent);
+		CloseHandle(hCmdFinishedEvent);
 	}
 
 	closesocket(client);

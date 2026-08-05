@@ -1,0 +1,187 @@
+#include "BookMarksMgr.h"
+uint64_t g_uBookMarkNodeId = 0;
+
+BookMarksMgr::BookMarksMgr() :
+	m_nLastFatherNum(-1)
+{
+
+}
+
+BookMarksMgr::~BookMarksMgr()
+{
+
+}
+
+
+//不过这里基于一个事实，就是[]是排好序的
+//[书签菜单] 1
+//[书签菜单 / 2026 / google时政] 1 2 3
+//这里记住上一次的是1 2 3
+//[书签菜单 / 2026 / IT2026 / 安全咨询]1 2 4 5
+//
+//这里记录上次是1 2 4 5
+//这里第一个"书签工具栏"就不匹配。匹配到哪里就从哪里继续插入
+//[书签工具栏 / 书籍 / 20190802]6 7 8
+//
+//{
+//	// 根节点（parent_id=-1）
+//	{1, true, L"我的图书分类", -1, 0, L""},
+//	{ 2, true, L"我的收藏夹", -1, 0, L"" },
+//	{ 3, false, L"临时笔记.txt", -1, 1001, L"这是自定义数据项，不是文件" },
+//		// 图书分类的子节点（parent_id=1）
+//	{ 4, true, L"编程类", 1, 0, L"" },
+//	{ 5, true, L"小说类", 1, 0, L"" },
+//	{ 6, false, L"Python实战.md", 2, 1002, L"Python入门教程，自定义数据" },
+//		// 编程类的子节点（parent_id=4）
+//	{ 7, false, L"Java核心技术.md", 4, 1003, L"Java进阶内容，自定义数据" },
+//	{ 8, false, L"C++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 9, false, L"D++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 10, false, L"E++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 11, false, L"F++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//	{ 13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
+//};
+VOID BookMarksMgr::InsertFolder(const std::wstring s)
+{
+	size_t start = 0;
+	size_t end = s.find(L'/');
+
+	// 循环切割
+	uint64_t uNum = 1;
+	std::vector<std::wstring> vecFolders;
+
+	//拆分目录例如“书签菜单/理财/股票”保存进vector
+	while (end != std::wstring::npos)
+	{
+		std::wstring sFolderName = s.substr(start, end - start);
+		// 下一段
+		start = end + 1;
+		end = s.find(L'/', start);
+		vecFolders.push_back(sFolderName);
+	}
+
+	// 最后一段
+	if (start < s.size())
+	{
+		// 截取一段
+		vecFolders.push_back(s.substr(start, end - start));
+	}
+
+	//建立在ListView中显示的文件夹的父子关系
+	uint64_t uSameNodeCnt = 0;
+	//寻找最短的公共路径
+	for (auto i = 0; i < vecFolders.size(); i++)
+	{
+		if (i < min(vecFolders.size(), m_vecLastFolders.size()) && vecFolders[i] == m_vecLastFolders[i])
+		{
+			uSameNodeCnt++;
+			continue;
+		}
+		break;
+	}
+
+	//如果两个vector有公共的文件夹
+	if (uSameNodeCnt != 0)
+	{
+		uint64_t uPopCnt = m_vecLastFolders.size() - uSameNodeCnt;
+		for (int i = 0; i < uPopCnt; i++)
+		{
+			if (!m_vecLastNodes.empty())
+			{
+				m_vecLastNodes.pop_back();
+			}
+		}
+		BookMarksNode LastNode;
+		if (!m_vecLastFolders.empty())
+		{
+			LastNode = m_vecLastNodes.back();
+			m_nLastFatherNum = LastNode.m_uNum;
+			//避免下一次遍历的目录比上一次遍历的目录短的情况出现，比如：
+			//[书签菜单/2026/IT2026/前沿科学]
+			//[书签菜单/2026/IT2026]
+			m_uCurrentNode = LastNode;
+		}
+	}
+	else//说明没有公共路径，那就重新以根节点为根目录
+	{
+		m_nLastFatherNum = -1;
+	}
+
+	for (auto i = 0; i < vecFolders.size(); i++)
+	{
+		if (i < min(vecFolders.size(), m_vecLastFolders.size()) && vecFolders[i] == m_vecLastFolders[i])
+		{
+			continue;
+		}
+
+		BookMarksNode node;
+		// 截取一段
+		node.m_bIsFolder = true;
+		node.m_nFatherNum = m_nLastFatherNum;
+		//node.m_nFatherNum = LastNode.m_nFatherNum;
+		node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
+		m_nLastFatherNum = node.m_uNum;
+		node.m_sName = vecFolders[i];
+		node.m_uId = g_uBookMarkNodeId++;
+		m_vecNodes.push_back(node);
+		m_uCurrentNode = node;
+		m_vecLastNodes.push_back(node);
+	}
+	m_vecLastFolders = vecFolders;
+}
+//todo：有一种情况下会出错，就是上一次的NativeMessage.exe没结束掉，然后重启GUI.exe，然后再结束掉Native.exe再重启Native.exe在重载Firefox
+// todo：为什么如果不关闭Native.exe，每次启动GUI。exe就可以自动获取到数据？
+// 
+//ItemNode g_szTestNode[] =
+//{
+//	// 根节点（parent_id=-1）
+//	{1, true, L"我的图书分类", -1, 0, L""},
+//	{2, true, L"我的收藏夹", -1, 0, L""},
+//	{3, false, L"临时笔记.txt", -1, 1001, L"这是自定义数据项，不是文件"},
+//	// 图书分类的子节点（parent_id=1）
+//	{4, true, L"编程类", 1, 0, L""},
+//	{5, true, L"小说类", 1, 0, L""},
+//	{6, false, L"Python实战.md", 2, 1002, L"Python入门教程，自定义数据"},
+//	// 编程类的子节点（parent_id=4）
+//	{7, false, L"Java核心技术.md", 4, 1003, L"Java进阶内容，自定义数据"},
+//	{8, false, L"C++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{9, false, L"D++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{10, false, L"E++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{11, false, L"F++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
+//};
+VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des)
+{
+	BookMarksNode node;
+	// 截取一段
+	node.m_bIsFolder = false;
+	node.m_nFatherNum = m_uCurrentNode.m_uNum;
+	node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
+	node.m_sName = name;
+	node.m_sDescription = des;
+	node.m_uId = g_uBookMarkNodeId++;//todo：这玩意儿有用吗
+	m_vecNodes.push_back(node);
+}
+
+std::vector<BookMarksNode>& BookMarksMgr::GetAllBookMarksNodes()
+{
+	return m_vecNodes;
+}
+
+uint64_t BookMarksMgr::GetBookMarksCnt()
+{
+	return m_vecNodes.size();
+}
+
+std::optional<BookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
+{
+	auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const BookMarksNode& item) {
+		return item.m_uId == uid;
+		});
+
+	if (it == m_vecNodes.end())
+		return std::nullopt; // 没找到
+
+	return *it;
+}

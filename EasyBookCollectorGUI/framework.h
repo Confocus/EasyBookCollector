@@ -28,3 +28,5 @@
 #define UID_RELOAD_BOOKMARKS	1
 #define STRING_ADD_ACTIVE_TAB	"AddActiveTab"
 #define UID_ADD_ACTIVE_TAB		2
+#define STRING_DISCONNECT_PIPE "DisconnectPipe"
+#define UID_DISCONNECT_PIPE		3

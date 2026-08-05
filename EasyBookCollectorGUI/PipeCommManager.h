@@ -124,6 +124,7 @@ private:
 	}
 
 	VOID ParseToBookmarkTree();
+	BOOL DisconnectPipe();
 
 	std::wstring UTF8ToWString(const char* utf8, int length)
 	{
@@ -155,6 +156,7 @@ private:
 		return it->second;
 	}
 private:
+	//HANDLE m_hDisconnectPipeEvent;
 	std::queue<std::string> m_qGUICommand;
 	std::mutex m_mutex;
 	std::shared_ptr<char[]> m_spBookMarksData;

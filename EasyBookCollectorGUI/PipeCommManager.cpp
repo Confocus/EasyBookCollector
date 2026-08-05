@@ -6,7 +6,7 @@
 #define EVENT_NAME_RESPONSE	L"{A7486818-B995-4F67-BA45-834BE0B980EC}\Response"
 #define EVENT_NAME_CONNECT_PIPE	L"{A1418B8A-7998-4262-9D44-47E607653E93}\ConnectPipe"
 #define EVENT_NAME_DISCONNECT_PIPE	L"{4E17318B-F76A-448B-8401-42085E3AC90D}\DisconnectPipe"
-#define EVENT_NAME_LOADED_BOOKMARKS	L"{08D7B0CC-08CA-4823-AE7F-55585EC28A5B}\LoadedBookmarks"
+#define EVENT_NAME_CMD_FINISHED	L"{08D7B0CC-08CA-4823-AE7F-55585EC28A5B}\LoadedBookmarks"
 
 #define MAX_CMD_LEN	256
 #define PIPE_READ_LEN	4096
@@ -14,6 +14,7 @@
 uint64_t g_uBookMarkNodeId = 0;
 CPipeCommManager::CPipeCommManager():
 	m_uTotalLen(0)
+	//m_hDisconnectPipeEvent(NULL)
 {
 	//默认启动时就自带一条加载书签的命令
 	m_qGUICommand.push(STRING_RELOAD_BOOKMARKS);
@@ -30,47 +31,50 @@ void CPipeCommManager::Run()
 {
 	HANDLE hPipe = INVALID_HANDLE_VALUE;
 	HANDLE hCreatePipeEvent = NULL;
-	HANDLE hDisconnectPipeEvent = NULL;
-	HANDLE hLoadedBookmarksEvent = NULL;
+	HANDLE hCommandFinishedEvent = NULL;//命令执行完成的Event
+
+	hPipe = CreateNamedPipe(
+		PIPE_NAME_BOOKMARK_TRANS,
+		PIPE_ACCESS_DUPLEX,
+		PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, //PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,//PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+		1, 0, 0, 0, nullptr);
+	if (INVALID_HANDLE_VALUE == hPipe)
+	{
+		return;
+	}
+
+	//1、通知Daemon管道创建好，可以接受书签内容了
+	hCreatePipeEvent = CreateEvent(
+		NULL,
+		FALSE,
+		FALSE,
+		EVENT_NAME_CONNECT_PIPE
+	);
+	if (hCreatePipeEvent == NULL)
+	{
+		return;
+	}
+	//todo：这个的位置是不是放到ConnectNamedPipe后面？
+	SetEvent(hCreatePipeEvent);
+
+	BOOL connected = ConnectNamedPipe(hPipe, NULL);
+	if (!connected) 
+	{
+		DWORD err = GetLastError();
+
+		if (err == ERROR_PIPE_CONNECTED) 
+		{
+			// 客户端已经提前连上了，这是正常情况
+		}
+		else 
+		{
+			printf("ConnectNamedPipe failed: %d\n", err);
+			return;
+		}
+	}
+
 	do
 	{
-		hPipe = CreateNamedPipe(
-			PIPE_NAME_BOOKMARK_TRANS,
-			PIPE_ACCESS_DUPLEX,
-			PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, //PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,//PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-			1, 0, 0, 0, nullptr);
-		if (INVALID_HANDLE_VALUE == hPipe)
-		{
-			break;
-		}
-
-		//1、通知Daemon管道创建好，可以接受书签内容了
-		hCreatePipeEvent = CreateEvent(
-			NULL,
-			FALSE,
-			FALSE,
-			EVENT_NAME_CONNECT_PIPE
-		);
-		if (hCreatePipeEvent == NULL)
-		{
-			break;
-		}
-		//todo：这个的位置是不是放到ConnectNamedPipe后面？
-		SetEvent(hCreatePipeEvent);
-
-		BOOL connected = ConnectNamedPipe(hPipe, NULL);
-		if (!connected) {
-			DWORD err = GetLastError();
-
-			if (err == ERROR_PIPE_CONNECTED) {
-				// 客户端已经提前连上了，这是正常情况
-			}
-			else {
-				printf("ConnectNamedPipe failed: %d\n", err);
-				break;
-			}
-		}
-
 		//集中到一个地方接收命令并派发命令给NativeMessageDemo.exe
 		while (true)
 		{
@@ -131,45 +135,32 @@ void CPipeCommManager::Run()
 				ParseToBookmarkTree();
 				break;
 			}
+			case UID_DISCONNECT_PIPE:
+			{
+				//这里发送断开链接的命令
+				DisconnectPipe();//这里不break还得执行下边的清理操作
+			}
 			}
 
-			hLoadedBookmarksEvent = CreateEvent(
+			//这里是命令执行完成的通知,通知守护进程可以去取下一个命令了
+			hCommandFinishedEvent = CreateEvent(
 				NULL,
 				FALSE,
 				FALSE,
-				EVENT_NAME_LOADED_BOOKMARKS
+				EVENT_NAME_CMD_FINISHED
 			);
-			if (hLoadedBookmarksEvent == NULL)
-			{
-				//todo：如何进行错误处理？
-				break;
-			}
-			SetEvent(hLoadedBookmarksEvent);
-
-			hDisconnectPipeEvent = CreateEvent(
-				NULL,
-				FALSE,
-				FALSE,
-				EVENT_NAME_DISCONNECT_PIPE
-			);
-			if (hDisconnectPipeEvent == NULL)
+			if (hCommandFinishedEvent == NULL)
 			{
 				break;
 			}
-			SetEvent(hDisconnectPipeEvent);
+			SetEvent(hCommandFinishedEvent);
 		}
 
-		CloseHandle(hPipe);
 	} while (0);
 	
-	if (hLoadedBookmarksEvent)
+	if (hCommandFinishedEvent)
 	{
-		CloseHandle(hLoadedBookmarksEvent);
-	}
-
-	if (hDisconnectPipeEvent)
-	{
-		CloseHandle(hDisconnectPipeEvent);
+		CloseHandle(hCommandFinishedEvent);
 	}
 
 	if (hCreatePipeEvent)
@@ -302,6 +293,23 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 			}
 		}
 	}
+}
+
+BOOL CPipeCommManager::DisconnectPipe()
+{
+	/*m_hDisconnectPipeEvent = CreateEvent(
+		NULL,
+		FALSE,
+		FALSE,
+		EVENT_NAME_DISCONNECT_PIPE
+	);
+	if (m_hDisconnectPipeEvent == NULL)
+	{
+		return FALSE;
+	}
+	SetEvent(m_hDisconnectPipeEvent);*/
+
+	return TRUE;
 }
 
 BookMarksMgr::BookMarksMgr():
