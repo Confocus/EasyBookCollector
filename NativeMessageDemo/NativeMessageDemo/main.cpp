@@ -22,6 +22,22 @@ using namespace std;
 #define EVENT_NAME_SENT_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\SendRecvCmd"
 #define EVENT_NAME_RESPONSE	L"{A7486818-B995-4F67-BA45-834BE0B980EC}\Response"
 
+#define STRING_RELOAD_BOOKMARKS	"reload-bookmarks"
+#define UID_RELOAD_BOOKMARKS	1
+#define STRING_ADD_ACTIVE_TAB	"AddActiveTab"
+#define UID_ADD_ACTIVE_TAB		2
+
+std::wstring CharToWchar(const char* pSrc, UINT codepage = CP_UTF8)
+{
+	if (pSrc == nullptr) return L"";
+	int len = MultiByteToWideChar(codepage, 0, pSrc, -1, nullptr, 0);
+	if (len <= 0) return L"";
+	std::wstring buf(len, 0);
+	MultiByteToWideChar(codepage, 0, pSrc, -1, &buf[0], len);
+	return buf;
+}
+
+
 std::string GetCmdFromRemote(HANDLE hPipe)
 {
 	char szRecvCmd[4096] = { 0 };
@@ -30,12 +46,12 @@ std::string GetCmdFromRemote(HANDLE hPipe)
 	BOOL bRet = ReadFile(hPipe, szRecvCmd, 4095, &readLen, nullptr);
 	if (!bRet || readLen == 0)
 	{
-		printf(u8"GetCmdFromRemote 读取命令失败\n");
+		printf("GetCmdFromRemote 读取命令失败\n");
 		return "";
 	}
-
-	printf(u8"GetCmdFromRemote 读取命令成功：%s\n", szRecvCmd);
-	return "reload-bookmarks";
+	std::wstring wsRecvCmd = CharToWchar(szRecvCmd);
+	printf("GetCmdFromRemote 读取命令成功：%s\n", wsRecvCmd);
+	return szRecvCmd;
 }
 
 BOOL RecvWebSocketData(SOCKET sock, shared_ptr<char[]> &spRecvBuf, int64_t& outLen)
@@ -398,11 +414,11 @@ namespace uWS {
 	};
 }
 
-BOOL TransferBookMarksToGUI(HANDLE hPipe, std::shared_ptr<char[]> spData, int64_t nDataLen)
+BOOL TransferDataToGUI(HANDLE hPipe, std::shared_ptr<char[]> spData, int64_t nDataLen)
 {
 	HANDLE hConnectPipeEvent = NULL;
 	HANDLE hResponse = NULL;
-	printf(u8"调用TransferBookMarksToGUI向GUI发送数据\n");
+	printf("调用TransferBookMarksToGUI向GUI发送数据\n");
 	DWORD dwWriteLen = 0;
 	do 
 	{
@@ -411,7 +427,7 @@ BOOL TransferBookMarksToGUI(HANDLE hPipe, std::shared_ptr<char[]> spData, int64_
 		//if (!WriteFile(hPipe, sDataLen.c_str(), strlen(sDataLen.c_str()), &dwWriteLen, NULL))
 		if (!WriteFile(hPipe, &nDataLen, sizeof(nDataLen), &dwWriteLen, NULL))
 		{
-			printf(u8"发送长度写管道失败:%d\n", GetLastError());
+			printf("发送长度写管道失败:%d\n", GetLastError());
 			printf("Write %d %dbytes\n", nDataLen, dwWriteLen);
 			return FALSE;
 			break;
@@ -420,7 +436,7 @@ BOOL TransferBookMarksToGUI(HANDLE hPipe, std::shared_ptr<char[]> spData, int64_
 		//发送数据
 		if (!WriteFile(hPipe, spData.get(), nDataLen, &dwWriteLen, NULL))
 		{
-			printf(u8"发送数据写管道失败:%d\n", GetLastError());
+			printf("发送数据写管道失败:%d\n", GetLastError());
 			printf("Write %d %dbytes\n", nDataLen, dwWriteLen);
 			return FALSE;
 			break;
@@ -464,6 +480,31 @@ BOOL TransferBookMarksToGUI(HANDLE hPipe, std::shared_ptr<char[]> spData, int64_
 	return TRUE;
 }
 
+BOOL SendAndRecvCommandInner(SOCKET client, HANDLE hPipe, std::string_view command)
+{
+	//todo：校验comand参数的合法性
+	printf("读取到命令：%s\n",command.data());
+	if (!SendWebSocketMsg(client, STRING_RELOAD_BOOKMARKS))
+	{
+		return FALSE;
+	}
+
+	int64_t nDataLen = 0;
+	shared_ptr<char[]> spRecvBuf;
+	if (!RecvWebSocketData(client, spRecvBuf, nDataLen))
+	{
+		return FALSE;
+	}
+	//todo：现在用的是Firefox 远程调试 CDP模式；比较模式Native Messaging看看有什么区别
+	//通信传给GUI.exe
+	if (!TransferDataToGUI(hPipe, spRecvBuf, nDataLen))
+	{
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 unsigned __stdcall SendAndRecvCommand(void* param)
 {
 	char szResponse[MAX_BUF_SIZE] = { 0 };
@@ -475,6 +516,9 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	HANDLE hConnectPipeEvent = NULL;
 	HANDLE hDisconnectPipeEvent = NULL;
 	HANDLE hPipe = INVALID_HANDLE_VALUE;
+
+	setlocale(LC_ALL, "chs");
+	SetConsoleOutputCP(CP_UTF8);
 
 	WSADATA wsa;
 	WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -497,11 +541,17 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		printf("listen failed: %d\n", WSAGetLastError());
 		return 0;
 	}
-
-	printf(u8"WebSocket 服务已启动: ws://127.0.0.1:%d\n", PORT);
+	printf("WebSocket 服务已启动: ws://127.0.0.1:%d\n", PORT);
 	//注意：过往的要在accept处等很久的原因：失败的次数太多了导致FireFox尝试重连的间隔越来越长
 	//与Firefox建立连接
 	SOCKET client = accept(server, NULL, NULL);
+	if (client == INVALID_SOCKET)
+	{
+		int err = WSAGetLastError();
+
+		printf("accept failed, error = %d\n", err);
+		return 0;
+	}
 
 	if (SOCKET_ERROR == recv(client, recvBuf, MAX_BUF_SIZE, 0))
 	{
@@ -539,7 +589,7 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	{
 		//todo:相互通知创建管道
 		//等待对方创建好管道，得到通知就可以连接
-		printf(u8"尝试连接\n");
+		printf("尝试连接\n");
 		hConnectPipeEvent = CreateEvent(
 			NULL,
 			FALSE,
@@ -553,12 +603,12 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		}
 
 		//确保管道是已经被创建好了的
-		printf(u8"等待管道连接\n");
+		printf("等待管道连接\n");
 		if (WAIT_OBJECT_0 != WaitForSingleObject(hConnectPipeEvent, INFINITE))
 		{
 			break;
 		}
-		printf(u8"等待到管道连接信号\n");
+		printf("等待到管道连接信号\n");
 		hDisconnectPipeEvent = CreateEvent(
 			NULL,
 			FALSE,
@@ -572,7 +622,7 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		}
 
 		// 连接管道（这就是打开管道的意思）
-		printf(u8"打开管道\n");
+		printf("打开管道\n");
 		HANDLE hPipe = CreateFile(
 			PIPE_NAME_BOOKMARK_TRANS,                // 管道名称
 			GENERIC_READ | GENERIC_WRITE,  // 可读可写（双向）
@@ -586,44 +636,24 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		// 判断是否连接成功
 		if (hPipe == INVALID_HANDLE_VALUE)
 		{
-			printf(u8"打开管道失败\n");
+			printf("打开管道失败\n");
 			break;
 		}
 
-		printf(u8"读取管道中的命令\n");
-		if (strcmp(GetCmdFromRemote(hPipe).c_str(), "reload-bookmarks") == 0)
+		printf("读取管道中的命令\n");
+		std::string command = GetCmdFromRemote(hPipe);
+		if (!SendAndRecvCommandInner(client, hPipe, command))
 		{
-			printf(u8"读取到命令：reload-bookmarks\n");
-			if (!SendWebSocketMsg(client, "reload-bookmarks"))
-			{
-				goto ERROR_POINT;
-			}
-
-			int64_t nDataLen = 0;
-			shared_ptr<char[]> spRecvBuf;
-			if (!RecvWebSocketData(client, spRecvBuf, nDataLen))
-			{
-				goto ERROR_POINT;
-			}
-
-			//通信传给GUI.exe
-			if (!TransferBookMarksToGUI(hPipe, spRecvBuf, nDataLen))
-			{
-				goto ERROR_POINT;
-			}
-		}
-		else
-		{
-			printf(u8"未读取到其它命令\n");
+			goto ERROR_POINT;
 		}
 
 		//收到GUI处理完毕的通知才关闭pipe连接
-		printf(u8"等待关闭管道:%d\n", GetLastError());
+		printf("等待关闭管道:%d\n", GetLastError());
 		if (WAIT_OBJECT_0 != WaitForSingleObject(hDisconnectPipeEvent, INFINITE))
 		{
 			break;
 		}
-		printf(u8"等待到关闭管道:%d\n", GetLastError());
+		printf("等待到关闭管道:%d\n", GetLastError());
 
 		CloseHandle(hDisconnectPipeEvent);
 		CloseHandle(hConnectPipeEvent);

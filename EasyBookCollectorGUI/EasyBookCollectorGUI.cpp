@@ -22,6 +22,7 @@
 #pragma comment(lib, "ole32.lib")
 //#pragma comment(lib, "commctrl.lib")
 
+
 #define MAX_LOADSTRING 100
 const int HOVER_TIME = 300;
 BOOL g_bIsTrackRegistered = FALSE;
@@ -31,7 +32,7 @@ CListBoxWndManager g_ListBoxWndMgr;
 //CPipeMgr::CPipeServer g_PipeMgr;测试不同类型的管道用的
 HWND hChildList = NULL;
 //todo:这里改成一个单实例类
-CPipeCommManager PipeCommMgr;
+CPipeCommManager g_PipeCommMgr;
 
 #define MOUSE_LEAVE_MONITOR 2001
 #define ID_MAIN_LISTBOX 3001 // 目录按钮ID
@@ -129,7 +130,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_NOTIFY: // 处理ListView双击（核心：进入虚拟文件夹）
 	{
 		NMHDR* pNMHDR = (NMHDR*)lParam;
-		if (pNMHDR->code == NM_DBLCLK)
+		if (pNMHDR->code == NM_DBLCLK) //todo：这里有一个问题，就是没有判断双击的是不是ListView Item
 		{
 			g_ListViewMgr.VisitListViewFolder(hWnd, msg, wParam, lParam);
 		}
@@ -173,6 +174,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					pTip->iItem);
 			}
 		}
+		else if (pNMHDR->code == NM_RCLICK)//处理右键点击ListView Item   pNMHDR->idFrom == IDC_LISTVIEW && 
+		{
+			NMLISTVIEW* pNmLv = (NMLISTVIEW*)lParam;
+
+			// pNmLv->iItem == -1：右键点击ListView空白区域，没有点到任何item
+			if (pNmLv->iItem != -1)
+			{
+				// 选中被右键点击的那一行（可选，很多UI习惯右键自动选中该行）
+				ListView_SetItemState(pNMHDR->hwndFrom, pNmLv->iItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+
+				POINT pt = pNmLv->ptAction;
+				// 把控件客户坐标转为屏幕坐标，TrackPopupMenu需要屏幕坐标
+				ClientToScreen(pNMHDR->hwndFrom, &pt);
+
+				/*HMENU hMenu = LoadMenu(hInst, MAKEINTRESOURCE(IDR_POPUP_MENU));
+				HMENU hPopup = GetSubMenu(hMenu, 0);*/
+
+				HMENU hPopup = CreatePopupMenu();
+				AppendMenuW(hPopup, MF_STRING, ID_POPUP_ADD, L"添加");
+				AppendMenuW(hPopup, MF_STRING, ID_POPUP_DELETE, L"删除");
+
+				TrackPopupMenu(
+					hPopup,
+					TPM_RIGHTBUTTON | TPM_BOTTOMALIGN,
+					pt.x, pt.y,
+					0,
+					hWnd,   // 父窗口接收菜单命令 WM\_COMMAND
+					nullptr
+				);
+				DestroyMenu(hPopup);
+			}
+		}
 		break;
 	}
 
@@ -206,13 +239,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		break;
 	}
 
-	case WM_DESTROY: {
+	case WM_DESTROY: 
+	{
 		OleUninitialize();
 		g_ListViewMgr.Destory();
 		PostQuitMessage(0);
 		break;
 	}
+	case WM_COMMAND: 
+	{
+		UINT cmdId = LOWORD(wParam);
+		switch (cmdId)
+		{
+			case ID_POPUP_DELETE:
+			{
+				break;
+			}
 
+			case ID_POPUP_ADD:
+			{
+				//todo：发消息给FireFox插件尝试去获取网页的信息
+				//获取当前网页的信息并添加
+				g_PipeCommMgr.PushGUICommandToQueue(STRING_ADD_ACTIVE_TAB);
+				break;
+			}
+		}
+		break;
+	}
 	default:
 		return DefWindowProcW(hWnd, msg, wParam, lParam);
 	}
@@ -236,10 +289,11 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 //todo:要考察GUI、Daemon、Firefox三个端直接不同的出错情况下或不同启动顺序下是否能够挽救回来
 unsigned __stdcall StartCommManager(void* param)
 {
-	PipeCommMgr.Run();
+	g_PipeCommMgr.Run();
 	return 0;
 }
 
+//todo：如果VS以管理员权限启动，好像通信会有问题
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) 
 {
 	InitCommonControls();

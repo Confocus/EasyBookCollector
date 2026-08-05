@@ -92,6 +92,28 @@ async function sendBookmarksToExe() {
     }
 }
 
+async function getActiveTabInfo() {
+    const [activeTab] = await browser.tabs.query({active: true, currentWindow: true});
+    return activeTab;
+}
+
+async function sendActiveTabInfoToExe() {
+    console.log("sendActiveTabInfoToExe start");
+
+    try {
+        // 获取书签
+        let tabInfo = await getActiveTabInfo();
+        console.log("✅ 准备发送tabInfo数据，长度：", tabInfo.length);
+
+        // --- WebSocket 直接发送！一行搞定！---
+        ws.send(tabInfo);
+
+        console.log("✅ tabInfo已发送到 EXE！");
+
+    } catch (err) {
+        console.error("❌ tabInfo发送失败：", err);
+    }
+}
 
 let ws;
 
@@ -110,10 +132,16 @@ function startListen() {
         let cmd = event.data;
         console.log("📩 收到命令：" + cmd);
 
-        if (cmd === "reload-bookmarks") {
+        if (cmd === "reload-bookmarks") 
+        {
             console.log("🔄 执行：刷新书签");
             // 你要执行的逻辑写这里
             sendBookmarksToExe();
+        }
+        if(cmd == "AddActiveTab")
+        {
+            console.log("🔄 获取activeTab信息");
+            sendActiveTabInfoToExe();
         }
         if (cmd === "retry") {
             console.log("🔄 retry");

@@ -1,4 +1,5 @@
 #include "PipeCommManager.h"
+#include "framework.h"
 
 #define PIPE_NAME_BOOKMARK_TRANS	L"\\\\.\\pipe\\BookmarkTransPipe"
 #define EVENT_NAME_SENT_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\SendRecvCmd"
@@ -10,19 +11,19 @@
 #define MAX_CMD_LEN	256
 #define PIPE_READ_LEN	4096
 
-#define CMD_RELOAD_BOOKMARKS	"reload-bookmarks"
 uint64_t g_uBookMarkNodeId = 0;
 CPipeCommManager::CPipeCommManager():
 	m_uTotalLen(0)
 {
 	//默认启动时就自带一条加载书签的命令
-	m_qGUICommand.push(CMD_RELOAD_BOOKMARKS);
+	m_qGUICommand.push(STRING_RELOAD_BOOKMARKS);
 	m_spBookMarksMgr = std::make_shared<BookMarksMgr>();
+	m_mCmdUid[STRING_ADD_ACTIVE_TAB] = UID_ADD_ACTIVE_TAB;
+	m_mCmdUid[STRING_RELOAD_BOOKMARKS] = UID_RELOAD_BOOKMARKS;
 }
 
 CPipeCommManager::~CPipeCommManager()
 {
-
 }
 
 void CPipeCommManager::Run()
@@ -54,7 +55,7 @@ void CPipeCommManager::Run()
 		{
 			break;
 		}
-
+		//todo：这个的位置是不是放到ConnectNamedPipe后面？
 		SetEvent(hCreatePipeEvent);
 
 		BOOL connected = ConnectNamedPipe(hPipe, NULL);
@@ -70,20 +71,23 @@ void CPipeCommManager::Run()
 			}
 		}
 
+		//集中到一个地方接收命令并派发命令给NativeMessageDemo.exe
 		while (true)
 		{
 			// todo：确定收发命令的格式
 			std::string sCommand;
-			//2、如果从GUI的操作界面，有发送过来的要执行的命令
+			//如果从GUI的操作界面，有发送过来的要执行的命令
+			//否则这里会循环等待
 			if (WaitForCommandFromGUI(sCommand))
 			{
 				//todo:后面如果是多线程，则要锁管道
 				//命令推送到管道
-				PushCommandIntoPipe(hPipe, sCommand);
+				WriteCommandIntoPipe(hPipe, sCommand);
 			}
-
-			////4、等待接收Daemon的响应数据
-			//todo:GetLastError 109
+			//todo：连续几次之后这里发送获取书签命令但是没有拿到书签数据
+			
+			
+			//等待接收Daemon的响应数据
 			DWORD readLen = 0;
 			
 			BOOL bRet = ReadFile(hPipe, &m_uTotalLen, sizeof(m_uTotalLen), &readLen, NULL);
@@ -113,7 +117,21 @@ void CPipeCommManager::Run()
 			}
 			m_spBookMarksData[m_uTotalLen] = 0;
 			DumpToFile(m_spBookMarksData.get(), m_uTotalLen);//todo:构建树形结构
-			ParseToBookmarkTree();
+
+			switch (ConvertCmdToUid(sCommand))
+			{
+				//todo：获取当前激活的Tab的页面信息
+			case UID_ADD_ACTIVE_TAB:
+			{
+				//todo：获得新的书签，插入书签然后重新Reload或者Reparse
+				break;
+			}
+			case UID_RELOAD_BOOKMARKS:
+			{
+				ParseToBookmarkTree();
+				break;
+			}
+			}
 
 			hLoadedBookmarksEvent = CreateEvent(
 				NULL,
@@ -182,10 +200,9 @@ std::shared_ptr<BookMarksMgr>& CPipeCommManager::GetBookMarksMgrPointer()
 
 BOOL CPipeCommManager::WaitForCommandFromGUI(std::string& sCommand)
 {
-	//todo:这里等待，后续修改等待方式
-	//todo:后续考虑GUI如何把命令塞入queue
 	while (true)
 	{
+		//todo:这里等待，后续修改等待方式
 		if (IsGUICommandQueueEmpty())
 		{
 			Sleep(3 * 1000);
@@ -195,15 +212,17 @@ BOOL CPipeCommManager::WaitForCommandFromGUI(std::string& sCommand)
 	}
 	
 	//todo：等待到数据
-	return PopGUICommandQueue(sCommand);
+	return GetGUICommandFromQueue(sCommand);
 }
 
-BOOL CPipeCommManager::PushCommandIntoPipe(HANDLE hPipe, const std::string& sCommand)
+BOOL CPipeCommManager::WriteCommandIntoPipe(HANDLE hPipe, const std::string& sCommand)
 {
 	//todo：后续这里封装和构造发送命令格式
 	return WriteFile(hPipe, sCommand.c_str(), MAX_CMD_LEN, NULL, NULL);
 }
 
+//todo：如果是一个空文件夹，不会传递过来
+//
 VOID CPipeCommManager::ParseToBookmarkTree()
 {
 	uint64_t start = 0;
@@ -221,6 +240,10 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 	//1、每条存储信息占一行，由换行键决定
 	//2、文件夹的名称没有/存在 todo：当然我们可以测试下有/存在的文件夹Firefox是怎么处理的
 	//3、同一目录下必须是连续出现的
+	if (m_uTotalLen < 1000)
+	{
+		printf("%s", m_spBookMarksData.get());
+	}
 	for (int i = 0; i < m_uTotalLen; i++)
 	{
 		if (bPrasingFolder == TRUE)
@@ -275,6 +298,7 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 				bPrasingFolder = TRUE;
 				//todo：分析手动改变FireFox中书签的顺序是否有影响
 				//todo：如果GUI崩溃了，再启动GUI是否可以直接连接上Native
+				//todo：目前还有一个bug，就是如果我不关闭Native，连续几次启动关闭GUI.exe，就会有出现加载文件夹不完全的情况出现
 			}
 		}
 	}
@@ -438,7 +462,7 @@ VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std:
 	node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
 	node.m_sName = name;
 	node.m_sDescription = des;
-	node.m_uId = g_uBookMarkNodeId++;//todo：这玩意儿有用吗
+	node.m_uId = g_uBookMarkNodeId++;//这玩意儿有用吗？通过uId查找节点的时候需要一个唯一编号
 	m_vecNodes.push_back(node);
 }
 

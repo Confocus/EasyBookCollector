@@ -41,9 +41,14 @@ public:
 		*pdwEffect = DROPEFFECT_COPY;
 		return S_OK;
 	}
-	HRESULT DragLeave() override { return S_OK; }
+	HRESULT DragLeave() override 
+	{ 
+		return S_OK; 
+	}
 
 	// 拖放落下 → 解析 URL
+	//20260730决定改变策略，改变操作习惯，因为拖拽这件事太麻烦了，累手腕。
+	//设想：网页上随便一处激活窗口，然后直接右键ListView Item然后点击保存
 	HRESULT Drop(IDataObject* pDataObj, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) override
 	{
 		//todo：一种方法是，这里可以触发一次Web查询:browser.tabs.query({})

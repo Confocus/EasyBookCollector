@@ -10,6 +10,7 @@
 #include <array>
 #include <queue>
 #include <mutex>
+#include <map>
 
 class BookMarksNode
 {
@@ -51,7 +52,7 @@ public:
 private:
 	//int64_t m_uCurrentPointer;//现在遍历到哪个目录了，方便直接插入数据
 	BookMarksNode m_uCurrentNode;
-	std::vector<BookMarksNode> m_vecNodes;
+	std::vector<BookMarksNode> m_vecNodes;//每一个文件夹或文件都被当做一个Node保存到了这个数组里
 	std::vector<BookMarksNode> m_vecLastNodes;
 	std::vector<std::wstring> m_vecLastFolders;//保存上一次操作的文件夹路径序列，便于判断下一次从哪开始插入
 	int64_t m_nLastFatherNum;
@@ -70,18 +71,20 @@ public:
 	std::vector<BookMarksNode>& GetAllBookMarksNodes();
 	uint64_t GetBookMarksCnt();
 	std::shared_ptr<BookMarksMgr>& GetBookMarksMgrPointer();
-private:
-	BOOL WaitForCommandFromGUI(std::string& sCommand);
 
-	BOOL PushCommandIntoPipe(HANDLE hPipe, const std::string& sCommand);
-	
-	VOID PushGUICommandQueue(const std::string& data)
+	VOID PushGUICommandToQueue(const std::string& data)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 		m_qGUICommand.push(data);
 	}
+private:
+	BOOL WaitForCommandFromGUI(std::string& sCommand);
 
-	BOOL PopGUICommandQueue(std::string& out)
+	//把命令写进管道
+	BOOL WriteCommandIntoPipe(HANDLE hPipe, const std::string& sCommand);
+	
+	//把管道中的命令拿出来
+	BOOL GetGUICommandFromQueue(std::string& out)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 		if (m_qGUICommand.empty())
@@ -141,10 +144,22 @@ private:
 		return std::wstring(s.substr(l, r - l + 1));
 	}
 
+	UINT ConvertCmdToUid(std::string_view command)
+	{
+		auto it = m_mCmdUid.find(command);
+		if (it == m_mCmdUid.end())
+		{
+			return 0;
+		}
+
+		return it->second;
+	}
 private:
 	std::queue<std::string> m_qGUICommand;
 	std::mutex m_mutex;
 	std::shared_ptr<char[]> m_spBookMarksData;
 	uint64_t m_uTotalLen;
 	std::shared_ptr<BookMarksMgr> m_spBookMarksMgr;
+	//保存从命令行string到uid的转换
+	std::map<std::string_view, unsigned int> m_mCmdUid;
 };
