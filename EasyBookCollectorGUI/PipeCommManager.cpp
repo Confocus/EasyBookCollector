@@ -1,6 +1,7 @@
 #include "PipeCommManager.h"
 #include "framework.h"
-
+#include "./json-develop/single_include/nlohmann/json.hpp"
+using json = nlohmann::json;
 
 #define MAX_CMD_LEN	256
 #define PIPE_READ_LEN	4096
@@ -83,19 +84,18 @@ void CPipeCommManager::Run()
 				WriteCommandIntoPipe(hPipe, sCommand);
 			}
 			//todo：连续几次之后这里发送获取书签命令但是没有拿到书签数据
-			
 			switch (ConvertCmdToUid(sCommand))
 			{
 				//todo：获取当前激活的Tab的页面信息
 			case UID_ADD_ACTIVE_TAB:
 			{
-				ReadActiveTabInfoFromPipe(hPipe);
+				HandleActiveTabInfo(hPipe);
 				//todo：获得新的书签，插入书签然后重新Reload或者Reparse
 				break;
 			}
 			case UID_RELOAD_BOOKMARKS:
 			{
-				ReadBookMarksFromPipeAndParse(hPipe);
+				HandleBookmarksData(hPipe);
 				break;
 			}
 			case UID_DISCONNECT:
@@ -199,12 +199,12 @@ BOOL CPipeCommManager::IsGUICommandQueueEmpty()
 	return m_qGUICommand.empty();
 }
 
-VOID CPipeCommManager::DumpToFile(const char* data, int length)
+VOID CPipeCommManager::DumpToFile(const char* data, int length, std::string_view svDumpPath)
 {
 	FILE* fp = nullptr;
 
 	// 安全打开文件，wb = 二进制写入
-	errno_t err = fopen_s(&fp, "bookmarkes_dump.bin", "wb");
+	errno_t err = fopen_s(&fp, svDumpPath.data(), "wb");
 
 	if (err != 0 || fp == nullptr)
 	{
@@ -220,26 +220,30 @@ VOID CPipeCommManager::DumpToFile(const char* data, int length)
 }
 
 //todo：这里把读取操作抽象出来
-BOOL CPipeCommManager::ReadActiveTabInfoFromPipe(HANDLE hPipe)
+BOOL CPipeCommManager::HandleActiveTabInfo(HANDLE hPipe)
 {
 	//等待接收Daemon的响应数据
 	if (!ReadDataFromPipe(hPipe, m_spActiveTabInfo, m_uActiveTabInfoLen))
 	{
 		return FALSE;
 	}
-	DumpToFile(m_spActiveTabInfo.get(), m_uActiveTabInfoLen);
-
+	DumpToFile(m_spActiveTabInfo.get(), m_uActiveTabInfoLen, "activetabinfo_dump.bin");
+	ParseActiveInfo();
 	return TRUE;
 }
 
-BOOL CPipeCommManager::ReadBookMarksFromPipeAndParse(HANDLE hPipe)
+BOOL CPipeCommManager::HandleBookmarksData(HANDLE hPipe)
 {
 	if (!ReadDataFromPipe(hPipe, m_spBookMarksData, m_uBookMarksLen))
 	{
 		return FALSE;
 	}
-	DumpToFile(m_spBookMarksData.get(), m_uBookMarksLen);//todo:构建树形结构
+	DumpToFile(m_spBookMarksData.get(), m_uBookMarksLen, "bookmarkes_dump.bin");//todo:构建树形结构
 	ParseToBookmarkTree();
+	//todo：本地插入方案：1、重新reload；2、不重新reload
+	// todo：本地刷新或者重载？
+	//todo：发送通知到Firefox：是一个一个提交还是多个操作之后一起提交？
+	
 	return TRUE;
 }
 
@@ -341,6 +345,21 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 	SetEvent(hLoadedBookmarksEvent);
 }
 
+VOID CPipeCommManager::ParseActiveInfo()
+{
+	if (!m_spActiveTabInfo)
+	{
+		return;
+	}
+
+	std::string sActiveInfo = m_spActiveTabInfo.get();
+	std::string raw = R"({"type":"before_switch_tab","data":{"id":146}})";
+	json j = json::parse(raw);
+	std::string sActiveUrl = j["url"];
+	std::string sActiveTitle = j["title"];
+
+}
+
 BOOL CPipeCommManager::Disconnect()
 {
 	/*m_hDisconnectPipeEvent = CreateEvent(
@@ -409,6 +428,10 @@ BOOL CPipeCommManager::ReadDataFromPipe(HANDLE hPipe, std::shared_ptr<char[]>& s
 		}
 		//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
 		BOOL bRet = ReadFile(hPipe, spData.get() + recvLen, toReadLen, &readLen, nullptr);
+		if (!bRet && readLen > 0)
+		{
+			//这里只是为了消除C28193警告
+		}
 		if (readLen == 0)
 		{
 			DWORD dwErr = GetLastError();
@@ -418,7 +441,6 @@ BOOL CPipeCommManager::ReadDataFromPipe(HANDLE hPipe, std::shared_ptr<char[]>& s
 		recvLen += readLen;
 	}
 	spData[uTotalDataLen] = 0;
-	DumpToFile(spData.get(), uTotalDataLen);//todo:构建树形结构
 
 	return TRUE;
 }

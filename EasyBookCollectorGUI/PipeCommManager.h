@@ -86,11 +86,12 @@ private:
 	BOOL IsGUICommandQueueEmpty();
 
 	//todo:后续改成单独一个线程出来缓存到本地
-	VOID DumpToFile(const char* data, int length);
+	VOID DumpToFile(const char* data, int length, std::string_view svDumpPath);//todo:构建树形结构
 	
-	BOOL ReadActiveTabInfoFromPipe(HANDLE hPipe);
-	BOOL ReadBookMarksFromPipeAndParse(HANDLE hPipe);
+	BOOL ProcessActiveTabInfo(HANDLE hPipe);
+	BOOL ProcessBookmarksData(HANDLE hPipe);
 	VOID ParseToBookmarkTree();
+	VOID ParseActiveInfo();
 	BOOL Disconnect();
 
 	std::wstring UTF8ToWString(const char* utf8, int length);
