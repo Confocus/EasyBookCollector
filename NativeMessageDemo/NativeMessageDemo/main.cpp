@@ -641,7 +641,7 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 	//循环读取发送过来的命令
 	while (TRUE)
 	{
-		printf("读取管道中的命令\n");
+		printf("读取管道中的命令中……\n");
 		std::string command = GetCmdFromRemote(hPipe);
 		if (!SendAndRecvCommandInner(client, hPipe, command))
 		{
@@ -649,12 +649,12 @@ unsigned __stdcall SendAndRecvCommand(void* param)
 		}
 
 		//收到GUI处理完毕的通知才关闭pipe连接
-		printf("等待关闭管道:%d\n", GetLastError());
+		printf("等待命令执行完成:%d\n", GetLastError());
 		if (WAIT_OBJECT_0 != WaitForSingleObject(hCmdFinishedEvent, INFINITE))
 		{
 			break;
 		}
-		printf("等待到关闭管道:%d\n", GetLastError());
+		printf("等待命令执行完成:%d\n", GetLastError());
 
 		//CloseHandle(hCmdFinishedEvent);
 		//CloseHandle(hConnectPipeEvent);

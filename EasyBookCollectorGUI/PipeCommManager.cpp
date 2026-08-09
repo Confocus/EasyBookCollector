@@ -7,7 +7,7 @@
 
 uint64_t g_uBookMarkNodeId = 0;
 CPipeCommManager::CPipeCommManager():
-	m_uTotalDataLen(0)
+	m_uBookMarksLen(0)
 	//m_hDisconnectPipeEvent(NULL)
 {
 	//默认启动时就自带一条加载书签的命令
@@ -95,8 +95,7 @@ void CPipeCommManager::Run()
 			}
 			case UID_RELOAD_BOOKMARKS:
 			{
-				ReadBookMarksFromPipe(hPipe);
-				ParseToBookmarkTree();
+				ReadBookMarksFromPipeAndParse(hPipe);
 				break;
 			}
 			case UID_DISCONNECT:
@@ -153,6 +152,12 @@ std::shared_ptr<BookMarksMgr>& CPipeCommManager::GetBookMarksMgrPointer()
 	return m_spBookMarksMgr;
 }
 
+VOID CPipeCommManager::PushGUICommandToQueue(const std::string& data)
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	m_qGUICommand.push(data);
+}
+
 BOOL CPipeCommManager::WaitForCommandFromGUI(std::string& sCommand)
 {
 	while (true)
@@ -176,75 +181,65 @@ BOOL CPipeCommManager::WriteCommandIntoPipe(HANDLE hPipe, const std::string& sCo
 	return WriteFile(hPipe, sCommand.c_str(), MAX_CMD_LEN, NULL, NULL);
 }
 
+BOOL CPipeCommManager::GetGUICommandFromQueue(std::string& out)
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	if (m_qGUICommand.empty())
+	{
+		return false;
+	}
+	out = m_qGUICommand.front();
+	m_qGUICommand.pop();
+	return true;
+}
+
+BOOL CPipeCommManager::IsGUICommandQueueEmpty()
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	return m_qGUICommand.empty();
+}
+
+VOID CPipeCommManager::DumpToFile(const char* data, int length)
+{
+	FILE* fp = nullptr;
+
+	// 安全打开文件，wb = 二进制写入
+	errno_t err = fopen_s(&fp, "bookmarkes_dump.bin", "wb");
+
+	if (err != 0 || fp == nullptr)
+	{
+		printf("打开文件失败\n");
+		return;
+	}
+
+	// 写入完整数据
+	fwrite(data, 1, length, fp);
+
+	// 关闭文件
+	fclose(fp);
+}
+
 //todo：这里把读取操作抽象出来
 BOOL CPipeCommManager::ReadActiveTabInfoFromPipe(HANDLE hPipe)
 {
 	//等待接收Daemon的响应数据
-	DWORD readLen = 0;
-	DWORD dwTotalLen = 0;
-	BOOL bRet = ReadFile(hPipe, &m_uTotalDataLen, sizeof(m_uTotalDataLen), &readLen, NULL);
-	if (!bRet || readLen == 0)//读长度一次就能读完
+	if (!ReadDataFromPipe(hPipe, m_spActiveTabInfo, m_uActiveTabInfoLen))
 	{
 		return FALSE;
 	}
-	m_spBookMarksData.reset(new char[m_uTotalDataLen + 1]());
-
-	uint64_t recvLen = 0;
-	while (recvLen < m_uTotalDataLen)
-	{
-		int toReadLen = PIPE_READ_LEN;
-		if (m_uTotalDataLen - recvLen < PIPE_READ_LEN)
-		{
-			toReadLen = m_uTotalDataLen - recvLen;
-		}
-		//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
-		BOOL bRet = ReadFile(hPipe, m_spBookMarksData.get() + recvLen, toReadLen, &readLen, nullptr);
-		if (readLen == 0)
-		{
-			DWORD dwErr = GetLastError();
-			continue;
-		}
-
-		recvLen += readLen;
-	}
-	m_spBookMarksData[m_uTotalDataLen] = 0;
-	DumpToFile(m_spBookMarksData.get(), m_uTotalDataLen);//todo:构建树形结构
+	DumpToFile(m_spActiveTabInfo.get(), m_uActiveTabInfoLen);
 
 	return TRUE;
 }
 
-BOOL CPipeCommManager::ReadBookMarksFromPipe(HANDLE hPipe)
+BOOL CPipeCommManager::ReadBookMarksFromPipeAndParse(HANDLE hPipe)
 {
-	//等待接收Daemon的响应数据
-	DWORD readLen = 0;
-
-	BOOL bRet = ReadFile(hPipe, &m_uTotalDataLen, sizeof(m_uTotalDataLen), &readLen, NULL);
-	if (!bRet || readLen == 0)//读长度一次就能读完
+	if (!ReadDataFromPipe(hPipe, m_spBookMarksData, m_uBookMarksLen))
 	{
 		return FALSE;
 	}
-	m_spBookMarksData.reset(new char[m_uTotalDataLen + 1]());
-
-	uint64_t recvLen = 0;
-	while (recvLen < m_uTotalDataLen)
-	{
-		int toReadLen = PIPE_READ_LEN;
-		if (m_uTotalDataLen - recvLen < PIPE_READ_LEN)
-		{
-			toReadLen = m_uTotalDataLen - recvLen;
-		}
-		//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
-		BOOL bRet = ReadFile(hPipe, m_spBookMarksData.get() + recvLen, toReadLen, &readLen, nullptr);
-		if (readLen == 0)
-		{
-			DWORD dwErr = GetLastError();
-			continue;
-		}
-
-		recvLen += readLen;
-	}
-	m_spBookMarksData[m_uTotalDataLen] = 0;
-	DumpToFile(m_spBookMarksData.get(), m_uTotalDataLen);//todo:构建树形结构
+	DumpToFile(m_spBookMarksData.get(), m_uBookMarksLen);//todo:构建树形结构
+	ParseToBookmarkTree();
 	return TRUE;
 }
 
@@ -267,11 +262,11 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 	//1、每条存储信息占一行，由换行键决定
 	//2、文件夹的名称没有/存在 todo：当然我们可以测试下有/存在的文件夹Firefox是怎么处理的
 	//3、同一目录下必须是连续出现的
-	if (m_uTotalDataLen < 1000)
+	if (m_uBookMarksLen < 1000)
 	{
 		printf("%s", m_spBookMarksData.get());
 	}
-	for (int i = 0; i < m_uTotalDataLen; i++)
+	for (int i = 0; i < m_uBookMarksLen; i++)
 	{
 		if (bPrasingFolder == TRUE)
 		{
@@ -311,11 +306,11 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 
 		if (bParsingWebsite == TRUE)
 		{
-			if (m_spBookMarksData[i] == '\n' || i == m_uTotalDataLen - 1)//最后一行没有换行符
+			if (m_spBookMarksData[i] == '\n' || i == m_uBookMarksLen - 1)//最后一行没有换行符
 			{
 				end = i;
 				uint64_t length = end - start;
-				if (i == m_uTotalDataLen - 1)//单独处理文本的最后一行，因为最后一行没有换行符
+				if (i == m_uBookMarksLen - 1)//单独处理文本的最后一行，因为最后一行没有换行符
 				{
 					length = end - start + 1;
 				}
@@ -359,6 +354,71 @@ BOOL CPipeCommManager::Disconnect()
 		return FALSE;
 	}
 	SetEvent(m_hDisconnectPipeEvent);*/
+
+	return TRUE;
+}
+
+std::wstring CPipeCommManager::UTF8ToWString(const char* utf8, int length)
+{
+	if (!utf8 || length <= 0)
+		return {};
+
+	int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8, length, nullptr, 0);
+	std::wstring result(wlen, L'\0');
+	MultiByteToWideChar(CP_UTF8, 0, utf8, length, &result[0], wlen);
+	return result;
+}
+
+std::wstring CPipeCommManager::Trim(std::wstring_view s)
+{
+	auto l = s.find_first_not_of(L" \t\n\r");
+	auto r = s.find_last_not_of(L" \t\n\r");
+	if (l == s.npos) return {};
+	return std::wstring(s.substr(l, r - l + 1));
+}
+
+UINT CPipeCommManager::ConvertCmdToUid(std::string_view command)
+{
+	auto it = m_mCmdUid.find(command);
+	if (it == m_mCmdUid.end())
+	{
+		return 0;
+	}
+
+	return it->second;
+}
+
+BOOL CPipeCommManager::ReadDataFromPipe(HANDLE hPipe, std::shared_ptr<char[]>& spData, uint64_t& uTotalDataLen)
+{
+	DWORD readLen = 0;
+	DWORD dwTotalLen = 0;
+	BOOL bRet = ReadFile(hPipe, &uTotalDataLen, sizeof(uTotalDataLen), &readLen, NULL);
+	if (!bRet || readLen == 0)//读长度一次就能读完
+	{
+		return FALSE;
+	}
+	spData.reset(new char[uTotalDataLen + 1]());
+
+	uint64_t recvLen = 0;
+	while (recvLen < uTotalDataLen)
+	{
+		int toReadLen = PIPE_READ_LEN;
+		if (uTotalDataLen - recvLen < PIPE_READ_LEN)
+		{
+			toReadLen = uTotalDataLen - recvLen;
+		}
+		//用了 消息模式（MESSAGE）消息模式规定：一条消息可能分多次读完只要没读完ReadFile 返回 FALSE
+		BOOL bRet = ReadFile(hPipe, spData.get() + recvLen, toReadLen, &readLen, nullptr);
+		if (readLen == 0)
+		{
+			DWORD dwErr = GetLastError();
+			continue;
+		}
+
+		recvLen += readLen;
+	}
+	spData[uTotalDataLen] = 0;
+	DumpToFile(spData.get(), uTotalDataLen);//todo:构建树形结构
 
 	return TRUE;
 }
