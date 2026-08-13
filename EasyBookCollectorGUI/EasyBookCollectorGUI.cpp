@@ -181,6 +181,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			// pNmLv->iItem == -1：右键点击ListView空白区域，没有点到任何item
 			if (pNmLv->iItem != -1)
 			{
+				g_ListViewMgr.SaveToBeAddedNode(pNMHDR->hwndFrom, lParam);
 				// 选中被右键点击的那一行（可选，很多UI习惯右键自动选中该行）
 				ListView_SetItemState(pNMHDR->hwndFrom, pNmLv->iItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 
@@ -204,6 +205,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					nullptr
 				);
 				DestroyMenu(hPopup);
+
 			}
 		}
 		break;
@@ -249,6 +251,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_COMMAND: 
 	{
 		UINT cmdId = LOWORD(wParam);
+		//获取当前网页的信息并添加
+		NMLISTVIEW* pNMLV = (NMLISTVIEW*)lParam;
+		int nItem = pNMLV->iItem;
+		if (nItem == -1) break; // 无效
+
+		// ==========1. 获取Item第一列文本==========
+		TCHAR szText[256] = { 0 };
+		LVITEM lvi = { 0 };
+		lvi.iItem = nItem;
+		lvi.iSubItem = 0;
+		lvi.pszText = szText;
+		lvi.cchTextMax = _countof(szText);
+		ListView_GetItem(hWnd, &lvi);
+
+		// ==========2. 获取你预先绑定的自定义数据==========
+		LVITEM lvData = { 0 };
+		lvData.iItem = nItem;
+		lvData.mask = LVIF_PARAM;
+		ListView_GetItem(hWnd, &lvData);
+		LPARAM userData = lvData.lParam;
 		switch (cmdId)
 		{
 			case ID_POPUP_DELETE:
@@ -258,8 +280,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 			case ID_POPUP_ADD:
 			{
-				//todo：发消息给FireFox插件尝试去获取网页的信息
-				//获取当前网页的信息并添加
 				g_PipeCommMgr.PushGUICommandToQueue(STRING_ADD_ACTIVE_TAB);
 				break;
 			}

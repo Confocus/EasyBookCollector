@@ -110,6 +110,13 @@ public:
 	HWND GetLeftListView();
 
 	std::optional<BookMarksNode> FindIndexById(uint64_t uid);
+
+	/**************************************************************************
+	* @brief 右键时将被右键点击的那个文件夹的信息传递给WM_COMMAND
+	* @param
+	* @return
+	*************************************************************************/
+	BOOL SaveToBeAddedNode(HWND hList, LPARAM lParam);
 private:
 	CListViewMgr(const CListViewMgr& other);
 	CListViewMgr& operator=(const CListViewMgr& other);
@@ -165,5 +172,8 @@ private:
 	const unsigned int m_nInitSplitterWidth;
 	signed int m_nLeftCurrentParent;//ListView的Folder的父节点
 	BOOL m_bIsBorderDragged;
+
+	//右键添加某个网站时待被添加的文件夹
+	std::optional<BookMarksNode> m_NodeToBeAdded;
 };
 

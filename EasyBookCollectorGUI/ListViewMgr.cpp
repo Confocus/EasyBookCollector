@@ -988,6 +988,37 @@ std::optional<BookMarksNode> CListViewMgr::FindIndexById(uint64_t uid)
 	return spBookMarksMgr->FindIndexById(uid);
 }
 
+BOOL CListViewMgr::SaveToBeAddedNode(HWND hList, LPARAM lParam)
+{
+	NMHDR* pNMHDR = (NMHDR*)lParam;
+	NMLISTVIEW* pNMLV = (NMLISTVIEW*)lParam;
+	int nItem = pNMLV->iItem;
+	if (nItem == -1)
+	{
+		return FALSE; // 无效
+	}
+
+	LVITEM lvi = { 0 };
+	TCHAR szText[256] = { 0 };
+	lvi.mask = LVIF_TEXT | LVIF_PARAM; // 同时读取文本+lParam
+	lvi.iItem = nItem;
+	lvi.iSubItem = 0;
+	lvi.pszText = szText;
+	lvi.cchTextMax = _countof(szText);
+
+	ListView_GetItem(hList, &lvi);
+	LPARAM userData = lvi.lParam;//此段代码可以正确获得ListViewItem名称
+
+	//返回要插入的那个节点的信息
+	std::optional<BookMarksNode> m_ToBeAddedNode = FindIndexById(static_cast<uint64_t>(userData));
+	if (!m_ToBeAddedNode.has_value())
+	{
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 void CListViewMgr::VisitListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	NMHDR* pNMHDR = (NMHDR*)lParam;

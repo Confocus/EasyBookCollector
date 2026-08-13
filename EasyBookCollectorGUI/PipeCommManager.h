@@ -31,9 +31,6 @@ public:
 	BOOL m_bIsFolder;
 	uint64_t m_uNum;
 	int64_t m_nFatherNum;
-	/*int64_t m_nSonNum;
-	int64_t m_nSiblingNum;*/
-	//int64_t m_nLevelNum;
 	uint64_t m_uId;
 	std::wstring m_sDescription;
 	std::wstring m_sName;
@@ -49,6 +46,7 @@ public:
 	std::vector<BookMarksNode>& GetAllBookMarksNodes();
 	uint64_t GetBookMarksCnt();
 	std::optional<BookMarksNode> FindIndexById(uint64_t uid);
+	VOID InsertNewAddedNode();
 private:
 	//int64_t m_uCurrentPointer;//现在遍历到哪个目录了，方便直接插入数据
 	BookMarksNode m_uCurrentNode;
@@ -88,10 +86,10 @@ private:
 	//todo:后续改成单独一个线程出来缓存到本地
 	VOID DumpToFile(const char* data, int length, std::string_view svDumpPath);//todo:构建树形结构
 	
-	BOOL ProcessActiveTabInfo(HANDLE hPipe);
-	BOOL ProcessBookmarksData(HANDLE hPipe);
+	BOOL HandleActiveTabInfo(HANDLE hPipe);
+	BOOL HandleBookmarksData(HANDLE hPipe);
 	VOID ParseToBookmarkTree();
-	VOID ParseActiveInfo();
+	BOOL ParseActiveInfo();
 	BOOL Disconnect();
 
 	std::wstring UTF8ToWString(const char* utf8, int length);

@@ -1,6 +1,7 @@
 #include "PipeCommManager.h"
 #include "framework.h"
 #include "./json-develop/single_include/nlohmann/json.hpp"
+#include <iostream>
 using json = nlohmann::json;
 
 #define MAX_CMD_LEN	256
@@ -86,11 +87,11 @@ void CPipeCommManager::Run()
 			//todo：连续几次之后这里发送获取书签命令但是没有拿到书签数据
 			switch (ConvertCmdToUid(sCommand))
 			{
-				//todo：获取当前激活的Tab的页面信息
 			case UID_ADD_ACTIVE_TAB:
 			{
 				HandleActiveTabInfo(hPipe);
 				//todo：获得新的书签，插入书签然后重新Reload或者Reparse
+				//todo：这里使用待插入的文件夹信息，并刷新VirtualFolder
 				break;
 			}
 			case UID_RELOAD_BOOKMARKS:
@@ -222,14 +223,27 @@ VOID CPipeCommManager::DumpToFile(const char* data, int length, std::string_view
 //todo：这里把读取操作抽象出来
 BOOL CPipeCommManager::HandleActiveTabInfo(HANDLE hPipe)
 {
-	//等待接收Daemon的响应数据
-	if (!ReadDataFromPipe(hPipe, m_spActiveTabInfo, m_uActiveTabInfoLen))
+	BOOL bRet = FALSE;
+	do 
 	{
-		return FALSE;
-	}
-	DumpToFile(m_spActiveTabInfo.get(), m_uActiveTabInfoLen, "activetabinfo_dump.bin");
-	ParseActiveInfo();
-	return TRUE;
+		//等待接收Daemon的响应数据
+		if (!ReadDataFromPipe(hPipe, m_spActiveTabInfo, m_uActiveTabInfoLen))
+		{
+			break;
+		}
+
+		DumpToFile(m_spActiveTabInfo.get(), m_uActiveTabInfoLen, "activetabinfo_dump.bin");
+
+		if (!ParseActiveInfo())
+		{
+			break;
+		}
+
+
+		bRet = TRUE;
+	} while (0);
+	
+	return bRet;
 }
 
 BOOL CPipeCommManager::HandleBookmarksData(HANDLE hPipe)
@@ -345,19 +359,28 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 	SetEvent(hLoadedBookmarksEvent);
 }
 
-VOID CPipeCommManager::ParseActiveInfo()
+BOOL CPipeCommManager::ParseActiveInfo()
 {
+	BOOL bResult = TRUE;
 	if (!m_spActiveTabInfo)
 	{
-		return;
+		return FALSE;
 	}
 
 	std::string sActiveInfo = m_spActiveTabInfo.get();
 	std::string raw = R"({"type":"before_switch_tab","data":{"id":146}})";
-	json j = json::parse(raw);
-	std::string sActiveUrl = j["url"];
-	std::string sActiveTitle = j["title"];
-
+	try {
+		json j = json::parse(raw);
+		std::string sActiveUrl = j["url"];
+		std::string sActiveTitle = j["title"];
+	}
+	catch (json::exception& e)
+	{
+		std::cerr << "JSON error: " << e.what() << std::endl;
+		bResult = FALSE;
+	}
+	
+	return bResult;
 }
 
 BOOL CPipeCommManager::Disconnect()
@@ -627,4 +650,9 @@ std::optional<BookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
 		return std::nullopt; // 没找到
 
 	return *it;
+}
+
+VOID BookMarksMgr::InsertNewAddedNode()
+{
+
 }
