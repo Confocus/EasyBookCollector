@@ -56,8 +56,6 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shlwapi.lib")
 
-CListViewMgr g_ListViewMgr;
-
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg)
 	{
@@ -85,7 +83,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			//todo：如何进行错误处理？
 			break;
 		}
-		g_ListViewMgr.InitDoubleListViewAndLoadData(hWnd);
+		CListViewMgr::instance().InitDoubleListViewAndLoadData(hWnd);
 
 		if (hLoadedBookmarksEvent)
 		{
@@ -96,35 +94,35 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_SIZING:
 	{
 		// 用户开始拖动边框调整大小
-		g_ListViewMgr.SetBorderDraggedStatus(TRUE);
+		CListViewMgr::instance().SetBorderDraggedStatus(TRUE);
 		break;
 	}
 	case WM_EXITSIZEMOVE:
 	{
 		// 用户结束了拖动（鼠标松开或按回车）
-		g_ListViewMgr.SetBorderDraggedStatus(FALSE);
+		CListViewMgr::instance().SetBorderDraggedStatus(FALSE);
 		break;
 	}
 	case WM_SIZE: 
 	{
-		g_ListViewMgr.DragSplitterAndRefreshAllListView(hWnd);
+		CListViewMgr::instance().DragSplitterAndRefreshAllListView(hWnd);
 		break;
 	}
 
 	// 处理拆分条拖动
 	case WM_LBUTTONDOWN: 
 	{
-		g_ListViewMgr.PressSplitter(hWnd, msg, wParam, lParam);
+		CListViewMgr::instance().PressSplitter(hWnd, msg, wParam, lParam);
 		break;
 	}
 	case WM_LBUTTONUP:
 	{
-		g_ListViewMgr.ReleaseSplitter(hWnd, msg, wParam, lParam);
+		CListViewMgr::instance().ReleaseSplitter(hWnd, msg, wParam, lParam);
 		break;
 	}
 	case WM_MOUSEMOVE: 
 	{
-		g_ListViewMgr.DragSplitterAndSendMessage(hWnd, msg, wParam, lParam);
+		CListViewMgr::instance().DragSplitterAndSendMessage(hWnd, msg, wParam, lParam);
 		break;
 	}
 	case WM_NOTIFY: // 处理ListView双击（核心：进入虚拟文件夹）
@@ -132,27 +130,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		NMHDR* pNMHDR = (NMHDR*)lParam;
 		if (pNMHDR->code == NM_DBLCLK) //todo：这里有一个问题，就是没有判断双击的是不是ListView Item
 		{
-			g_ListViewMgr.VisitListViewFolder(hWnd, msg, wParam, lParam);
+			CListViewMgr::instance().VisitListViewFolder(hWnd, msg, wParam, lParam);
 		}
 		else if (pNMHDR->code == LVN_GETINFOTIP)
 		{
 			NMLVGETINFOTIP* pTip = (NMLVGETINFOTIP*)lParam;
 
-			if (pNMHDR->hwndFrom == g_ListViewMgr.GetLeftListView())
+			if (pNMHDR->hwndFrom == CListViewMgr::instance().GetLeftListView())
 			{
 				NMLVGETINFOTIP* pTip = (NMLVGETINFOTIP*)lParam;
 				int index = pTip->iItem;
 				LVITEM lvi = { 0 };
 				lvi.mask = LVIF_PARAM;   // 只取 lParam
 				lvi.iItem = index;
-				ListView_GetItem(g_ListViewMgr.GetLeftListView(), &lvi);
+				ListView_GetItem(CListViewMgr::instance().GetLeftListView(), &lvi);
 
 				// 直接强转成你的 ID 类型
 				UINT uId = (UINT)lvi.lParam;
 				if (ID_BACK_TO_PARENT != lvi.lParam)
 				{
 					//todo：检查这里的算法是否正确，看看uid是否和vector下标匹配，看看uid不基于1000计算是否可以
-					std::optional<BookMarksNode> node = g_ListViewMgr.FindIndexById(lvi.lParam);
+					std::optional<BookMarksNode> node = CListViewMgr::instance().FindIndexById(lvi.lParam);
 					if (!node.has_value())
 					{
 						break;
@@ -167,7 +165,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				}
 				
 			}
-			else if (pNMHDR->hwndFrom == g_ListViewMgr.GetRightListView())
+			else if (pNMHDR->hwndFrom == CListViewMgr::instance().GetRightListView())
 			{
 				wsprintf(pTip->pszText,
 					L"右侧 ListView：第 %d 项",
@@ -181,7 +179,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			// pNmLv->iItem == -1：右键点击ListView空白区域，没有点到任何item
 			if (pNmLv->iItem != -1)
 			{
-				g_ListViewMgr.SaveToBeAddedNode(pNMHDR->hwndFrom, lParam);
+				CListViewMgr::instance().SaveToBeAddedNode(pNMHDR->hwndFrom, lParam);
 				// 选中被右键点击的那一行（可选，很多UI习惯右键自动选中该行）
 				ListView_SetItemState(pNMHDR->hwndFrom, pNmLv->iItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 
@@ -189,9 +187,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				// 把控件客户坐标转为屏幕坐标，TrackPopupMenu需要屏幕坐标
 				ClientToScreen(pNMHDR->hwndFrom, &pt);
 
-				/*HMENU hMenu = LoadMenu(hInst, MAKEINTRESOURCE(IDR_POPUP_MENU));
-				HMENU hPopup = GetSubMenu(hMenu, 0);*/
-
+				//右键某个ListViewItem弹出菜单决定添加到哪里
 				HMENU hPopup = CreatePopupMenu();
 				AppendMenuW(hPopup, MF_STRING, ID_POPUP_ADD, L"添加");
 				AppendMenuW(hPopup, MF_STRING, ID_POPUP_DELETE, L"删除");
@@ -218,7 +214,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			// F12切换双/四面板
 		if (wParam == VK_F11) {
 			//todo:如何在切换时仍保留当前的访问状态
-			g_ListViewMgr.TogglePanelMode(hWnd);
+			CListViewMgr::instance().TogglePanelMode(hWnd);
 			break;
 		}
 		break;
@@ -244,7 +240,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_DESTROY: 
 	{
 		OleUninitialize();
-		g_ListViewMgr.Destory();
+		CListViewMgr::instance().Destory();
 		PostQuitMessage(0);
 		break;
 	}
@@ -280,6 +276,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 			case ID_POPUP_ADD:
 			{
+				//如果只是连续多次右键但是并没有点击“添加”怎么办
+				//但是另一个线程的处理顺序不一定是我这里，因为可能出现一种情况：
+				//就是另一个处理命令的线程可能刚刚要处理，但是m_NodeTobeAdded又被右键修改了
+				//实际上这个队列能保证它所保存的时序和你操作的时序是一致的 //todo：或者后面加个时间戳以进一步保证
 				g_PipeCommMgr.PushGUICommandToQueue(STRING_ADD_ACTIVE_TAB);
 				break;
 			}
@@ -330,7 +330,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	HANDLE hThread = (HANDLE)_beginthreadex(0, 0, StartCommManager, (void*)NULL, 0, 0);
 
 	HWND hWnd = CreateWindowW(L"VirtualFolderDemo", L"书籍目录保存",
-		WS_OVERLAPPEDWINDOW , CW_USEDEFAULT, CW_USEDEFAULT, g_ListViewMgr.GetInitMainWndWidth(), 600,//| WS_CLIPCHILDREN
+		WS_OVERLAPPEDWINDOW , CW_USEDEFAULT, CW_USEDEFAULT, CListViewMgr::instance().GetInitMainWndWidth(), 600,//| WS_CLIPCHILDREN
 		NULL, NULL, hInstance, NULL);
 	if (!hWnd) return FALSE;
 

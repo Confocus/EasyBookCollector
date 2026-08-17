@@ -990,6 +990,7 @@ std::optional<BookMarksNode> CListViewMgr::FindIndexById(uint64_t uid)
 
 BOOL CListViewMgr::SaveToBeAddedNode(HWND hList, LPARAM lParam)
 {
+	std::lock_guard<std::mutex> lk(m_mtxToBeAddedNodes);
 	NMHDR* pNMHDR = (NMHDR*)lParam;
 	NMLISTVIEW* pNMLV = (NMLISTVIEW*)lParam;
 	int nItem = pNMLV->iItem;
@@ -1010,13 +1011,21 @@ BOOL CListViewMgr::SaveToBeAddedNode(HWND hList, LPARAM lParam)
 	LPARAM userData = lvi.lParam;//此段代码可以正确获得ListViewItem名称
 
 	//返回要插入的那个节点的信息
-	std::optional<BookMarksNode> m_ToBeAddedNode = FindIndexById(static_cast<uint64_t>(userData));
-	if (!m_ToBeAddedNode.has_value())
+	//无论右键点击多少次ListViewItem，都只保存最新的一次
+	m_NodeToBeAdded = FindIndexById(static_cast<uint64_t>(userData));
+	if (!m_NodeToBeAdded.has_value())
 	{
 		return FALSE;
 	}
-
+	//m_vecNodesToBeAdded.push_back(ToBeAddedNode.value());
+	
 	return TRUE;
+}
+
+std::optional<BookMarksNode> CListViewMgr::GetToBeAddedNode()
+{
+	std::lock_guard<std::mutex> lk(m_mtxToBeAddedNodes);
+	return m_NodeToBeAdded;
 }
 
 void CListViewMgr::VisitListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)

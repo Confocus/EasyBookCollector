@@ -1,5 +1,6 @@
 #include "PipeCommManager.h"
 #include "framework.h"
+#include "ListViewMgr.h"
 #include "./json-develop/single_include/nlohmann/json.hpp"
 #include <iostream>
 using json = nlohmann::json;
@@ -78,6 +79,9 @@ void CPipeCommManager::Run()
 			std::string sCommand;
 			//如果从GUI的操作界面，有发送过来的要执行的命令
 			//否则这里会循环等待
+			//todo：这里将来在队列中加个时间戳排序，按时间戳的顺序取出，所以不能再以一个单独的字符串作为命令行了，而应该以一个package
+			//这里暂时还没有多线程去取命令执行，所以这里的循环保证每个命令的处理顺序和每个命令的发送过来的顺序是一致的
+			//如果是多线程的，则必须把“待插入的目录、发送命令到GUI、网络传回书签”这三者原子化，才能绑定“待插入目录”和书签的关系
 			if (WaitForCommandFromGUI(sCommand))
 			{
 				//todo:后面如果是多线程，则要锁管道
@@ -89,6 +93,7 @@ void CPipeCommManager::Run()
 			{
 			case UID_ADD_ACTIVE_TAB:
 			{
+				//这里的循环确保了每次网络操作操作完成之后才去读下一次命令
 				HandleActiveTabInfo(hPipe);
 				//todo：获得新的书签，插入书签然后重新Reload或者Reparse
 				//todo：这里使用待插入的文件夹信息，并刷新VirtualFolder
@@ -227,6 +232,7 @@ BOOL CPipeCommManager::HandleActiveTabInfo(HANDLE hPipe)
 	do 
 	{
 		//等待接收Daemon的响应数据
+		//todo：这里是否设置等待超时？不然某一次卡住怎么办
 		if (!ReadDataFromPipe(hPipe, m_spActiveTabInfo, m_uActiveTabInfoLen))
 		{
 			break;
@@ -239,7 +245,13 @@ BOOL CPipeCommManager::HandleActiveTabInfo(HANDLE hPipe)
 			break;
 		}
 
+		std::optional<BookMarksNode> ToBeAddedNode = CListViewMgr::instance().GetToBeAddedNode();
+		if (!ToBeAddedNode.has_value())
+		{
+			break;
+		}
 
+		//todo：在这里插入，构建一个节点，插入到那个vector；然后通知刷新界面
 		bRet = TRUE;
 	} while (0);
 	

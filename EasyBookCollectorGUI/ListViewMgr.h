@@ -1,6 +1,7 @@
 #pragma once
 #include <Windows.h>
 #include <commctrl.h>
+#include "singleton.h"
 #pragma comment(lib, "comctl32.lib")
 #include "PipeCommManager.h"
 #define MAX_NAME_LEN 256
@@ -30,11 +31,12 @@ typedef enum {
 	PANEL_MODE_QUAD = 1     // 四面板
 } PanelMode;
 
-class CListViewMgr
+class CListViewMgr : public Singleton<CListViewMgr>
 {
+	//设置为友元可以调用private中的CListViewMgr的构造
+	friend Singleton<CListViewMgr>;
 public:
-	CListViewMgr();
-	virtual ~CListViewMgr();
+
 	/**************************************************************************
 	* @brief 一上来创建两个窗口并加载初始数据
 	* @param 
@@ -57,7 +59,6 @@ public:
 	BOOL PressSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	BOOL ReleaseSplitter(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
 
 	/**************************************************************************
 	* @brief 拖动Splitter并通知WM_SIZE进行重绘
@@ -117,7 +118,13 @@ public:
 	* @return
 	*************************************************************************/
 	BOOL SaveToBeAddedNode(HWND hList, LPARAM lParam);
+
+	std::optional<BookMarksNode> GetToBeAddedNode();
 private:
+	//Singleton<CListViewMgr>是友元可以调用private中的CListViewMgr的构造
+	CListViewMgr();
+	virtual ~CListViewMgr();
+
 	CListViewMgr(const CListViewMgr& other);
 	CListViewMgr& operator=(const CListViewMgr& other);
 
@@ -173,7 +180,12 @@ private:
 	signed int m_nLeftCurrentParent;//ListView的Folder的父节点
 	BOOL m_bIsBorderDragged;
 
-	//右键添加某个网站时待被添加的文件夹
+	//右键添加某个书签时，将要被添加到的目录
+	//但这里会出现如果手速过快，待添加的位置出现多个进行堆积，但还未真正处理完添加
+	//这里要考虑添加和处理的匹配
 	std::optional<BookMarksNode> m_NodeToBeAdded;
+	//std::vector<BookMarksNode> m_vecNodesToBeAdded;
+	//ToBeAddedNodes会在另一个线程读取，不要在另一个线程读的时候修改这里，而且将来也可能改成队列
+	//注意，std::mutex是不可拷贝的
+	std::mutex m_mtxToBeAddedNodes;
 };
-

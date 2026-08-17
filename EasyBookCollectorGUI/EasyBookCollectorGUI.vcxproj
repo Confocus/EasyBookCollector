@@ -134,6 +134,7 @@
     <ClInclude Include="..\public\json-develop\single_include\nlohmann\json.hpp" />
     <ClInclude Include="..\public\json-develop\single_include\nlohmann\json_fwd.hpp" />
     <ClInclude Include="..\public\PipeMgr.h" />
+    <ClInclude Include="..\public\singleton.h" />
     <ClInclude Include="DropTarget.h" />
     <ClInclude Include="ListBoxWindowTree.h" />
     <ClInclude Include="ListBoxWndManager.h" />
