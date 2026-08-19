@@ -4,6 +4,7 @@
 #include "singleton.h"
 #pragma comment(lib, "comctl32.lib")
 #include "PipeCommManager.h"
+#include "BookMarksNode.h"
 #define MAX_NAME_LEN 256
 #define ID_BACK_TO_PARENT	-1
 
@@ -110,16 +111,19 @@ public:
 	HWND GetRightListView();
 	HWND GetLeftListView();
 
-	std::optional<BookMarksNode> FindIndexById(uint64_t uid);
+	std::optional<CBookMarksNode> FindIndexById(uint64_t uid);
 
 	/**************************************************************************
 	* @brief 右键时将被右键点击的那个文件夹的信息传递给WM_COMMAND
 	* @param
 	* @return
 	*************************************************************************/
-	BOOL SaveToBeAddedNode(HWND hList, LPARAM lParam);
+	BOOL SaveInsertedFolder(HWND hList, LPARAM lParam);
 
-	std::optional<BookMarksNode> GetToBeAddedNode();
+	std::optional<CBookMarksNode> GetInsertedFolder();
+
+	void InsertBookMarkIntoFolder(HWND hList, std::optional<std::pair<std::string, std::string>> activeInfo, std::optional<CBookMarksNode> insertedFolder);
+
 private:
 	//Singleton<CListViewMgr>是友元可以调用private中的CListViewMgr的构造
 	CListViewMgr();
@@ -144,8 +148,8 @@ private:
 	*************************************************************************/
 	BOOL InitImageList();
 	//ItemNode* FindVirtualFoldNode(int node_id);
-	std::optional<BookMarksNode> FindVirtualFoldNode(int node_id);
-	void LoadVirtualFolder(HWND hList, int parent_id);
+	std::optional<CBookMarksNode> FindVirtualFoldNode(int node_id);
+	void LoadVirtualFolders(HWND hList, int parent_id);
 
 	void ListViewInsertColumn(HWND hWnd);
 
@@ -183,7 +187,7 @@ private:
 	//右键添加某个书签时，将要被添加到的目录
 	//但这里会出现如果手速过快，待添加的位置出现多个进行堆积，但还未真正处理完添加
 	//这里要考虑添加和处理的匹配
-	std::optional<BookMarksNode> m_NodeToBeAdded;
+	std::optional<CBookMarksNode> m_InsertedFolder;
 	//std::vector<BookMarksNode> m_vecNodesToBeAdded;
 	//ToBeAddedNodes会在另一个线程读取，不要在另一个线程读的时候修改这里，而且将来也可能改成队列
 	//注意，std::mutex是不可拷贝的

@@ -134,7 +134,9 @@
     <ClInclude Include="..\public\json-develop\single_include\nlohmann\json.hpp" />
     <ClInclude Include="..\public\json-develop\single_include\nlohmann\json_fwd.hpp" />
     <ClInclude Include="..\public\PipeMgr.h" />
+    <ClInclude Include="..\public\publicfuncs.h" />
     <ClInclude Include="..\public\singleton.h" />
+    <ClInclude Include="BookMarksNode.h" />
     <ClInclude Include="DropTarget.h" />
     <ClInclude Include="ListBoxWindowTree.h" />
     <ClInclude Include="ListBoxWndManager.h" />
@@ -149,6 +151,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\public\PipeMgr.cpp" />
+    <ClCompile Include="..\public\publicfuncs.cpp" />
+    <ClCompile Include="BookMarksNode.cpp" />
     <ClCompile Include="DropTarget.cpp" />
     <ClCompile Include="ListBoxWindowTree.cpp" />
     <ClCompile Include="ListBoxWndManager.cpp" />

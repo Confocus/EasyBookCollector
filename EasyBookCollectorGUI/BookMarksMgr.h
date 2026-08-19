@@ -39,13 +39,12 @@ public:
 	uint64_t GetBookMarksCnt();
 	std::optional<BookMarksNode> FindIndexById(uint64_t uid);
 private:
-	//int64_t m_uCurrentPointer;//现在遍历到哪个目录了，方便直接插入数据
 	BookMarksNode m_uCurrentNode;
-	std::vector<BookMarksNode> m_vecNodes;
+	std::vector<BookMarksNode> m_vecBookMarkNodes;
+	//算法细节中使用
 	std::vector<BookMarksNode> m_vecLastNodes;
-	std::vector<std::wstring> m_vecLastFolders;//保存上一次操作的文件夹路径序列，便于判断下一次从哪开始插入
+	//算法细节中使用：保存上一次操作的文件夹路径序列，便于判断下一次从哪开始插入
+	std::vector<std::wstring> m_vecLastFolders;
+	//算法细节中使用
 	int64_t m_nLastFatherNum;
-	//std::wstring sFolderName;//文件夹的名字、自己的名字
-	//std::vector<std::wstring> vecBooks;
-	//std::vector<std::shared_ptr<BookMarksTree*>> vecFolders;
 };

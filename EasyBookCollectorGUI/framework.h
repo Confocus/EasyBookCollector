@@ -2,6 +2,7 @@
 // 或特定于项目的包含文件
 //
 //todo：未来拿到评分数据
+//todo：重构代码
 #pragma once
 
 #include "targetver.h"
@@ -13,6 +14,8 @@
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+#include <Windows.h>
+#include <iostream>
 
 //每个Node的起始Index都是几千，然后最多有999个ListItem：
 //后续都是用 i * LISTBOX_INDEX_STEP 表示这个ListBox中的item的起始Index的

@@ -150,7 +150,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				if (ID_BACK_TO_PARENT != lvi.lParam)
 				{
 					//todo：检查这里的算法是否正确，看看uid是否和vector下标匹配，看看uid不基于1000计算是否可以
-					std::optional<BookMarksNode> node = CListViewMgr::instance().FindIndexById(lvi.lParam);
+					std::optional<CBookMarksNode> node = CListViewMgr::instance().FindIndexById(lvi.lParam);
 					if (!node.has_value())
 					{
 						break;
@@ -179,7 +179,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			// pNmLv->iItem == -1：右键点击ListView空白区域，没有点到任何item
 			if (pNmLv->iItem != -1)
 			{
-				CListViewMgr::instance().SaveToBeAddedNode(pNMHDR->hwndFrom, lParam);
+				CListViewMgr::instance().SaveInsertedFolder(pNMHDR->hwndFrom, lParam);
 				// 选中被右键点击的那一行（可选，很多UI习惯右键自动选中该行）
 				ListView_SetItemState(pNMHDR->hwndFrom, pNmLv->iItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 
@@ -248,25 +248,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	{
 		UINT cmdId = LOWORD(wParam);
 		//获取当前网页的信息并添加
-		NMLISTVIEW* pNMLV = (NMLISTVIEW*)lParam;
-		int nItem = pNMLV->iItem;
-		if (nItem == -1) break; // 无效
+		//NMLISTVIEW* pNMLV = (NMLISTVIEW*)lParam;
+		//int nItem = pNMLV->iItem;
+		//if (nItem == -1) break; // 无效
 
-		// ==========1. 获取Item第一列文本==========
-		TCHAR szText[256] = { 0 };
-		LVITEM lvi = { 0 };
-		lvi.iItem = nItem;
-		lvi.iSubItem = 0;
-		lvi.pszText = szText;
-		lvi.cchTextMax = _countof(szText);
-		ListView_GetItem(hWnd, &lvi);
+		//// ==========1. 获取Item第一列文本==========
+		//TCHAR szText[256] = { 0 };
+		//LVITEM lvi = { 0 };
+		//lvi.iItem = nItem;
+		//lvi.iSubItem = 0;
+		//lvi.pszText = szText;
+		//lvi.cchTextMax = _countof(szText);
+		//ListView_GetItem(hWnd, &lvi);
 
-		// ==========2. 获取你预先绑定的自定义数据==========
-		LVITEM lvData = { 0 };
-		lvData.iItem = nItem;
-		lvData.mask = LVIF_PARAM;
-		ListView_GetItem(hWnd, &lvData);
-		LPARAM userData = lvData.lParam;
+		//// ==========2. 获取你预先绑定的自定义数据==========
+		//LVITEM lvData = { 0 };
+		//lvData.iItem = nItem;
+		//lvData.mask = LVIF_PARAM;
+		//ListView_GetItem(hWnd, &lvData);
+		//LPARAM userData = lvData.lParam;
 		switch (cmdId)
 		{
 			case ID_POPUP_DELETE:

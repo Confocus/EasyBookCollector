@@ -3,6 +3,9 @@
 #include "ListViewMgr.h"
 #include "./json-develop/single_include/nlohmann/json.hpp"
 #include <iostream>
+#include "BookMarksNode.h"
+#include "publicfuncs.h"
+
 using json = nlohmann::json;
 
 #define MAX_CMD_LEN	256
@@ -142,8 +145,8 @@ void CPipeCommManager::Run()
 		CloseHandle(hPipe);
 	}
 }
-
-std::vector<BookMarksNode>& CPipeCommManager::GetAllBookMarksNodes()
+//todo：这一步为什么要封装
+std::vector<CBookMarksNode>& CPipeCommManager::GetAllBookMarksNodes()
 {
 	return m_spBookMarksMgr->GetAllBookMarksNodes();
 }
@@ -156,6 +159,11 @@ uint64_t CPipeCommManager::GetBookMarksCnt()
 std::shared_ptr<BookMarksMgr>& CPipeCommManager::GetBookMarksMgrPointer()
 {
 	return m_spBookMarksMgr;
+}
+
+VOID CPipeCommManager::InsertBookMarkNode(const BookMarksMgr& node) noexcept
+{
+
 }
 
 VOID CPipeCommManager::PushGUICommandToQueue(const std::string& data)
@@ -240,18 +248,51 @@ BOOL CPipeCommManager::HandleActiveTabInfo(HANDLE hPipe)
 
 		DumpToFile(m_spActiveTabInfo.get(), m_uActiveTabInfoLen, "activetabinfo_dump.bin");
 
-		if (!ParseActiveInfo())
+		std::optional<std::pair<std::string, std::string>> activeInfo = ParseActiveInfo();
+		if (!activeInfo.has_value())
 		{
 			break;
 		}
 
-		std::optional<BookMarksNode> ToBeAddedNode = CListViewMgr::instance().GetToBeAddedNode();
-		if (!ToBeAddedNode.has_value())
+		//拿到待插入到的目录信息
+		std::optional<CBookMarksNode> InsertedFolder = CListViewMgr::instance().GetInsertedFolder();
+		if (!InsertedFolder.has_value())
 		{
 			break;
 		}
 
+		m_spBookMarksMgr->InsertBookInfoUnderFolder(PublicFuncs::UTF8ToWString(activeInfo->first.c_str(), activeInfo->first.length()),
+			PublicFuncs::UTF8ToWString(activeInfo->second.c_str(), activeInfo->first.length()), InsertedFolder->GetNum());
+
+		//parent_id这里的parent_id是待插入节点的id
+		// 也可以参看函数：VisitSubListViewFolder。目前看来对于新增节点就只增加到vector中就可以了，具体显式可以在访问的时候调用VisitSubListViewFolder
+		// 也可能是只增加到vector，然后将来点击进入的时候会自动借助以前的VisitSubListViewFolder来刷新
+		//todo：这里暂时只更新一个
+		//CListViewMgr::instance().InsertBookMarkIntoFolder(CListViewMgr::instance().GetLeftListView(), )
 		//todo：在这里插入，构建一个节点，插入到那个vector；然后通知刷新界面
+	//	BookMarksNode() :
+	//		m_bIsFolder(TRUE),
+	//		m_uNum(0),
+	//		m_nFatherNum(-1),
+	//		m_uId(0)
+	//	{
+
+	//	}
+	//	~BookMarksNode()
+	//	{
+
+	//	}
+	//public:
+	//	BOOL m_bIsFolder;
+	//	uint64_t m_uNum;
+	//	int64_t m_nFatherNum;
+	//	/*int64_t m_nSonNum;
+	//	int64_t m_nSiblingNum;*/
+	//	//int64_t m_nLevelNum;
+	//	uint64_t m_uId;
+	//	std::wstring m_sDescription;
+	//	std::wstring m_sName;
+
 		bRet = TRUE;
 	} while (0);
 	
@@ -308,7 +349,7 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 			if (m_spBookMarksData[i] == ']')
 			{
 				end = i;
-				sFolderName = UTF8ToWString(m_spBookMarksData.get() + start, end - start);
+				sFolderName = PublicFuncs::UTF8ToWString(m_spBookMarksData.get() + start, end - start);
 				if (sFolderName != sLastFolderName)
 				{
 					m_spBookMarksMgr->InsertFolder(sFolderName);
@@ -326,7 +367,7 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 			if (m_spBookMarksData[i] == '=' && m_spBookMarksData[i + 1] == '>')
 			{
 				end = i - 1;
-				sWebsiteName = Trim(UTF8ToWString(m_spBookMarksData.get() + start, end - start));
+				sWebsiteName = Trim(PublicFuncs::UTF8ToWString(m_spBookMarksData.get() + start, end - start));
 				start = i + 2;
 				bParsingWebsite = TRUE;
 				bParsingDescription = FALSE;
@@ -344,8 +385,8 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 				{
 					length = end - start + 1;
 				}
-				sWebsiteDes = Trim(UTF8ToWString(m_spBookMarksData.get() + start, length));
-				m_spBookMarksMgr->InsertBookInfoUnderFolder(sWebsiteName, sWebsiteDes);
+				sWebsiteDes = Trim(PublicFuncs::UTF8ToWString(m_spBookMarksData.get() + start, length));
+				m_spBookMarksMgr->InsertBookInfoUnderFolder(sWebsiteName, sWebsiteDes, m_spBookMarksMgr->GetCurrentNode().GetNum());
 				bParsingWebsite = FALSE;
 				bPrasingFolder = TRUE;
 				//todo：分析手动改变FireFox中书签的顺序是否有影响
@@ -371,28 +412,27 @@ VOID CPipeCommManager::ParseToBookmarkTree()
 	SetEvent(hLoadedBookmarksEvent);
 }
 
-BOOL CPipeCommManager::ParseActiveInfo()
+std::optional<std::pair<std::string, std::string>> CPipeCommManager::ParseActiveInfo()
 {
-	BOOL bResult = TRUE;
+	std::optional<std::pair<std::string, std::string>> activeInfo;
 	if (!m_spActiveTabInfo)
 	{
-		return FALSE;
+		return std::nullopt;;
 	}
 
 	std::string sActiveInfo = m_spActiveTabInfo.get();
-	std::string raw = R"({"type":"before_switch_tab","data":{"id":146}})";
 	try {
-		json j = json::parse(raw);
-		std::string sActiveUrl = j["url"];
-		std::string sActiveTitle = j["title"];
+		json j = json::parse(sActiveInfo);
+		activeInfo = std::make_pair(j.at("data").at("title").get<std::string>(), j.at("data").at("url").get<std::string>());
 	}
 	catch (json::exception& e)
 	{
 		std::cerr << "JSON error: " << e.what() << std::endl;
-		bResult = FALSE;
+		std::string errMsg = std::string("JSON error: ") + e.what();
+		activeInfo = std::nullopt;;
 	}
 	
-	return bResult;
+	return activeInfo;
 }
 
 BOOL CPipeCommManager::Disconnect()
@@ -412,16 +452,16 @@ BOOL CPipeCommManager::Disconnect()
 	return TRUE;
 }
 
-std::wstring CPipeCommManager::UTF8ToWString(const char* utf8, int length)
-{
-	if (!utf8 || length <= 0)
-		return {};
-
-	int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8, length, nullptr, 0);
-	std::wstring result(wlen, L'\0');
-	MultiByteToWideChar(CP_UTF8, 0, utf8, length, &result[0], wlen);
-	return result;
-}
+//std::wstring CPipeCommManager::UTF8ToWString(const char* utf8, int length)
+//{
+//	if (!utf8 || length <= 0)
+//		return {};
+//
+//	int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8, length, nullptr, 0);
+//	std::wstring result(wlen, L'\0');
+//	MultiByteToWideChar(CP_UTF8, 0, utf8, length, &result[0], wlen);
+//	return result;
+//}
 
 std::wstring CPipeCommManager::Trim(std::wstring_view s)
 {
@@ -569,7 +609,7 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 				m_vecLastNodes.pop_back();
 			}
 		}
-		BookMarksNode LastNode;
+		CBookMarksNode LastNode;
 		if (!m_vecLastFolders.empty())
 		{
 			LastNode = m_vecLastNodes.back();
@@ -592,7 +632,7 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 			continue;
 		}
 		
-		BookMarksNode node;
+		CBookMarksNode node;
 		// 截取一段
 		node.m_bIsFolder = true;
 		node.m_nFatherNum = m_nLastFatherNum;
@@ -629,20 +669,22 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 //	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //};
-VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des)
+VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des, int64_t nFatherNum)
 {
-	BookMarksNode node;
+	CBookMarksNode node;
 	// 截取一段
 	node.m_bIsFolder = false;
-	node.m_nFatherNum = m_uCurrentNode.m_uNum;
-	node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
 	node.m_sName = name;
 	node.m_sDescription = des;
+	node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
 	node.m_uId = g_uBookMarkNodeId++;//这玩意儿有用吗？通过uId查找节点的时候需要一个唯一编号
+
+	//node.m_nFatherNum = m_uCurrentNode.m_uNum;
+	node.m_nFatherNum = nFatherNum;
 	m_vecNodes.push_back(node);
 }
 
-std::vector<BookMarksNode>& BookMarksMgr::GetAllBookMarksNodes()
+std::vector<CBookMarksNode>& BookMarksMgr::GetAllBookMarksNodes()
 {
 	return m_vecNodes;
 }
@@ -652,9 +694,9 @@ uint64_t BookMarksMgr::GetBookMarksCnt()
 	return m_vecNodes.size();
 }
 
-std::optional<BookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
+std::optional<CBookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
 {
-	auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const BookMarksNode& item) {
+	auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const CBookMarksNode& item) {
 		return item.m_uId == uid;
 		});
 
@@ -667,4 +709,9 @@ std::optional<BookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
 VOID BookMarksMgr::InsertNewAddedNode()
 {
 
+}
+
+CBookMarksNode& BookMarksMgr::GetCurrentNode()
+{
+	return m_uCurrentNode;
 }
