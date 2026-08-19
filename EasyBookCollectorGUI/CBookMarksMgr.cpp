@@ -1,6 +1,4 @@
-#include "BookMarksMgr.h"
-uint64_t g_uBookMarkNodeId = 0;
-
+#include "CBookMarksMgr.h"
 BookMarksMgr::BookMarksMgr() :
 	m_nLastFatherNum(-1)
 {
@@ -11,7 +9,6 @@ BookMarksMgr::~BookMarksMgr()
 {
 
 }
-
 
 //不过这里基于一个事实，就是[]是排好序的
 //[书签菜单] 1
@@ -91,7 +88,7 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 				m_vecLastNodes.pop_back();
 			}
 		}
-		BookMarksNode LastNode;
+		CBookMarksNode LastNode;
 		if (!m_vecLastFolders.empty())
 		{
 			LastNode = m_vecLastNodes.back();
@@ -114,16 +111,15 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 			continue;
 		}
 
-		BookMarksNode node;
+		CBookMarksNode node;
 		// 截取一段
 		node.m_bIsFolder = true;
 		node.m_nFatherNum = m_nLastFatherNum;
-		//node.m_nFatherNum = LastNode.m_nFatherNum;
-		node.m_uNum = m_vecBookMarkNodes.size() + 1;//计数从1开始
+		node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
 		m_nLastFatherNum = node.m_uNum;
 		node.m_sName = vecFolders[i];
-		node.m_uId = g_uBookMarkNodeId++;
-		m_vecBookMarkNodes.push_back(node);
+		node.m_uId = m_uBookMarkNodeId++;
+		m_vecNodes.push_back(node);
 		m_uCurrentNode = node;
 		m_vecLastNodes.push_back(node);
 	}
@@ -151,37 +147,49 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 //	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //};
-VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des)
+VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des, int64_t nFatherNum)
 {
-	BookMarksNode node;
+	CBookMarksNode node;
 	// 截取一段
 	node.m_bIsFolder = false;
-	node.m_nFatherNum = m_uCurrentNode.m_uNum;
-	node.m_uNum = m_vecBookMarkNodes.size() + 1;//计数从1开始
 	node.m_sName = name;
 	node.m_sDescription = des;
-	node.m_uId = g_uBookMarkNodeId++;//todo：这玩意儿有用吗
-	m_vecBookMarkNodes.push_back(node);
+	node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
+	node.m_uId = m_uBookMarkNodeId++;//这玩意儿有用吗？通过uId查找节点的时候需要一个唯一编号
+
+	//node.m_nFatherNum = m_uCurrentNode.m_uNum;
+	node.m_nFatherNum = nFatherNum;
+	m_vecNodes.push_back(node);
 }
 
-std::vector<BookMarksNode>& BookMarksMgr::GetAllBookMarksNodes()
+std::vector<CBookMarksNode>& BookMarksMgr::GetAllBookMarksNodes()
 {
-	return m_vecBookMarkNodes;
+	return m_vecNodes;
 }
 
 uint64_t BookMarksMgr::GetBookMarksCnt()
 {
-	return m_vecBookMarkNodes.size();
+	return m_vecNodes.size();
 }
 
-std::optional<BookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
+std::optional<CBookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
 {
-	auto it = find_if(m_vecBookMarkNodes.begin(), m_vecBookMarkNodes.end(), [uid](const BookMarksNode& item) {
+	auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const CBookMarksNode& item) {
 		return item.m_uId == uid;
 		});
 
-	if (it == m_vecBookMarkNodes.end())
+	if (it == m_vecNodes.end())
 		return std::nullopt; // 没找到
 
 	return *it;
+}
+
+VOID BookMarksMgr::InsertNewAddedNode()
+{
+
+}
+
+CBookMarksNode& BookMarksMgr::GetCurrentNode()
+{
+	return m_uCurrentNode;
 }

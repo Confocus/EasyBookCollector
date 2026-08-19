@@ -12,37 +12,21 @@
 #include <mutex>
 #include <map>
 #include "BookMarksNode.h"
-
-class BookMarksMgr
-{
-public:
-	BookMarksMgr();
-	~BookMarksMgr();
-	VOID InsertFolder(const std::wstring);
-	VOID InsertBookInfoUnderFolder(const std::wstring, const std::wstring, int64_t nFatherNum);
-	std::vector<CBookMarksNode>& GetAllBookMarksNodes();
-	uint64_t GetBookMarksCnt();
-	std::optional<CBookMarksNode> FindIndexById(uint64_t uid);
-	VOID InsertNewAddedNode();
-	CBookMarksNode& GetCurrentNode();
-private:
-	//int64_t m_uCurrentPointer;//现在遍历到哪个目录了，方便直接插入数据
-	CBookMarksNode m_uCurrentNode;
-	std::vector<CBookMarksNode> m_vecNodes;//每一个文件夹或文件都被当做一个Node保存到了这个数组里
-	std::vector<CBookMarksNode> m_vecLastNodes;
-	std::vector<std::wstring> m_vecLastFolders;//保存上一次操作的文件夹路径序列，便于判断下一次从哪开始插入
-	int64_t m_nLastFatherNum;
-	//std::wstring sFolderName;//文件夹的名字、自己的名字
-	//std::vector<std::wstring> vecBooks;
-	//std::vector<std::shared_ptr<BookMarksTree*>> vecFolders;
-};
-
+#include "CBookMarksMgr.h"
+/**
+ * @brief 通信组建
+ * @details 分发命令到守护进程，接收从守护进程发过来的数据
+ */
 class CPipeCommManager
 {
 public:
 	CPipeCommManager();
 	~CPipeCommManager();
 
+	/**
+	* @brief 建立管道同守护进程进行通信。这里会中转命令。
+	* @param parentFolder 待插入到的目标父目录节点
+	*/
 	void Run();
 	std::vector<CBookMarksNode>& GetAllBookMarksNodes();
 	uint64_t GetBookMarksCnt();
@@ -51,6 +35,11 @@ public:
 	VOID PushGUICommandToQueue(const std::string& data);
 	
 private:
+	/**
+	* @brief 等待从其它线程传递过来命令在
+	* @param 命令参数
+	* @return 成功返回true，失败返回false
+	*/
 	BOOL WaitForCommandFromGUI(std::string& sCommand);
 
 	//把命令写进管道
