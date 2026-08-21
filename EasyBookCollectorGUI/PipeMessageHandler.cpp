@@ -167,7 +167,7 @@ void CPipeMessageHandler::Run()
 
 VOID CPipeMessageHandler::PushGUICommandToQueue(const std::string& data)
 {
-	std::lock_guard<std::mutex> lock(m_mutex);
+	std::lock_guard<std::mutex> lock(m_mtxCmdQueue);
 	m_qGUICommand.push(data);
 }
 
@@ -196,7 +196,7 @@ BOOL CPipeMessageHandler::WriteCommandIntoPipe(HANDLE hPipe, const std::string& 
 
 BOOL CPipeMessageHandler::GetGUICommandFromQueue(std::string& out)
 {
-	std::lock_guard<std::mutex> lock(m_mutex);
+	std::lock_guard<std::mutex> lock(m_mtxCmdQueue);
 	if (m_qGUICommand.empty())
 	{
 		return false;
@@ -208,7 +208,7 @@ BOOL CPipeMessageHandler::GetGUICommandFromQueue(std::string& out)
 
 BOOL CPipeMessageHandler::IsGUICommandQueueEmpty()
 {
-	std::lock_guard<std::mutex> lock(m_mutex);
+	std::lock_guard<std::mutex> lock(m_mtxCmdQueue);
 	return m_qGUICommand.empty();
 }
 

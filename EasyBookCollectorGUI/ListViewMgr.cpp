@@ -95,6 +95,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 		SHGFI_SYSICONINDEX | SHGFI_SMALLICON
 	);
 
+	m_vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	//InitImageList();
 	// 初始化图标列表
 	RECT rcClient;
@@ -768,7 +769,6 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 		ListView_InsertItem(hList, &lvi);
 	}
 
-	std::vector<CBookMarksNode> m_vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	uint64_t uNodeCount = m_vecNodes.size();
 	for (unsigned int i = 0; i < uNodeCount; i++)
 	{
@@ -845,9 +845,7 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 
 void CListViewMgr::InsertBookMarkIntoFolder(HWND hList, std::optional<std::pair<std::string, std::string>> activeInfo, std::optional<CBookMarksNode> insertedFolder)
 {
-
-	std::vector<CBookMarksNode> vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
-	CBookMarksNode newBookMark = vecNodes.back();
+	CBookMarksNode newBookMark = m_vecNodes.back();
 	SHFILEINFOW sfi = { 0 };
 	// 插入ListView项
 	LVITEMW lvi = { 0 };
@@ -939,7 +937,6 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 		return;
 	}
 
-	std::vector<CBookMarksNode> m_vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	uint64_t uNodeCount = m_vecNodes.size();
 	if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的是“返回上一级”
 	{
@@ -1078,7 +1075,6 @@ HWND CListViewMgr::GetRightListView()
 //ItemNode* CListViewMgr::FindVirtualFoldNode(int node_id)
 std::optional<CBookMarksNode> CListViewMgr::FindVirtualFoldNode(int node_id)
 {
-	std::vector<CBookMarksNode> m_vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	for (unsigned int i = 0; i < CBookMarksMgr::instance().GetBookMarksCnt(); i++)
 	{
 		if (m_vecNodes[i].m_uId == node_id)

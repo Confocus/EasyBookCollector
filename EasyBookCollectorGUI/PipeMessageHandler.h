@@ -23,18 +23,14 @@ class CPipeMessageHandler : public Singleton<CPipeMessageHandler>
 {
 	friend Singleton<CPipeMessageHandler>;
 public:
-	
 	/**
-	* @brief 数据处理中心：建立管道同守护进程进行通信；这里会中转命令；接收并解析命令；
+	* @brief 数据通信处理函数。
+	* @details 建立管道同守护进程进行通信；完成命令中转、命令接收与解析；Run运行在独立线程，与界面线程隔离。
 	* @param parentFolder 待插入到的目标父目录节点
 	*/
 	void Run();
-	/*std::vector<CBookMarksNode>& GetAllBookMarksNodes();
-	uint64_t GetBookMarksCnt();
-	std::shared_ptr<BookMarksMgr>& GetBookMarksMgrPointer();
-	VOID InsertBookMarkNode(const BookMarksMgr& node) noexcept;*/
 	VOID PushGUICommandToQueue(const std::string& data);
-	
+
 private:
 	CPipeMessageHandler();
 	~CPipeMessageHandler();
@@ -79,12 +75,11 @@ private:
 private:
 	//HANDLE m_hDisconnectPipeEvent;
 	std::queue<std::string> m_qGUICommand;
-	std::mutex m_mutex;
+	mutable std::mutex m_mtxCmdQueue;//操作命令队列的锁
 	std::shared_ptr<char[]> m_spActiveTabInfo;
 	uint64_t m_uActiveTabInfoLen;
 	std::shared_ptr<char[]> m_spBookMarksData;
 	uint64_t m_uBookMarksLen;
-	//std::shared_ptr<CBookMarksMgr> m_spBookMarksMgr;
 	//保存从命令行string到uid的转换
 	std::map<std::string_view, unsigned int> m_mCmdUid;
 };

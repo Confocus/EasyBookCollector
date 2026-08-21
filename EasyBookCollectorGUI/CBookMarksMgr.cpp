@@ -40,6 +40,8 @@ CBookMarksMgr::~CBookMarksMgr()
 //};
 VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 {
+	std::unique_lock<std::shared_mutex> lock(m_rwVecNodes);
+
 	size_t start = 0;
 	size_t end = s.find(L'/');
 
@@ -149,6 +151,7 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 //};
 VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des, int64_t nFatherNum)
 {
+	std::unique_lock<std::shared_mutex> lock(m_rwVecNodes);
 	CBookMarksNode node;
 	// Ωÿ»°“ª∂Œ
 	node.m_bIsFolder = false;
@@ -162,18 +165,21 @@ VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std
 	m_vecNodes.push_back(node);
 }
 
-std::vector<CBookMarksNode> CBookMarksMgr::GetAllBookMarksNodes()
+std::vector<CBookMarksNode> CBookMarksMgr::GetAllBookMarksNodes() const
 {
+	std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
 	return m_vecNodes;
 }
 
-uint64_t CBookMarksMgr::GetBookMarksCnt()
+uint64_t CBookMarksMgr::GetBookMarksCnt() const
 {
+	std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
 	return m_vecNodes.size();
 }
 
 std::optional<CBookMarksNode> CBookMarksMgr::FindIndexById(uint64_t uid)
 {
+	std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
 	auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const CBookMarksNode& item) {
 		return item.m_uId == uid;
 		});

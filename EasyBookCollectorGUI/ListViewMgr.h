@@ -192,4 +192,5 @@ private:
 	//ToBeAddedNodes会在另一个线程读取，不要在另一个线程读的时候修改这里，而且将来也可能改成队列
 	//注意，std::mutex是不可拷贝的
 	std::mutex m_mtxToBeAddedNodes;
+	std::vector<CBookMarksNode> m_vecNodes;//显示数据时保存BookMarksNode列表在对象里，以免每次都更新
 };
