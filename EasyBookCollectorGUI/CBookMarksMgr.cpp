@@ -162,7 +162,7 @@ VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std
 	m_vecNodes.push_back(node);
 }
 
-std::vector<CBookMarksNode>& CBookMarksMgr::GetAllBookMarksNodes()
+std::vector<CBookMarksNode> CBookMarksMgr::GetAllBookMarksNodes()
 {
 	return m_vecNodes;
 }

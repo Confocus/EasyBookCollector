@@ -4,6 +4,7 @@
 #include <cmath>    // 用于 double、float、long double 类型的 abs
 #include "DropTarget.h"
 #include "BookMarksNode.h"
+#include "CBookMarksMgr.h"
 //起初把这个声明包含在ListViewMgr.h文件里会报错
 //ListViewMgr.h 被包含时，CPipeCommManager 类型还没有定义完成。
 //也就是说：
@@ -767,7 +768,7 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 		ListView_InsertItem(hList, &lvi);
 	}
 
-	std::vector<CBookMarksNode> m_vecNodes = CPipeMessageHandler::instance().GetAllBookMarksNodes();
+	std::vector<CBookMarksNode> m_vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	uint64_t uNodeCount = m_vecNodes.size();
 	for (unsigned int i = 0; i < uNodeCount; i++)
 	{
@@ -845,7 +846,7 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 void CListViewMgr::InsertBookMarkIntoFolder(HWND hList, std::optional<std::pair<std::string, std::string>> activeInfo, std::optional<CBookMarksNode> insertedFolder)
 {
 
-	std::vector<CBookMarksNode> vecNodes = CPipeMessageHandler::instance().GetAllBookMarksNodes();
+	std::vector<CBookMarksNode> vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	CBookMarksNode newBookMark = vecNodes.back();
 	SHFILEINFOW sfi = { 0 };
 	// 插入ListView项
@@ -938,7 +939,7 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 		return;
 	}
 
-	std::vector<CBookMarksNode> m_vecNodes = CPipeMessageHandler::instance().GetAllBookMarksNodes();
+	std::vector<CBookMarksNode> m_vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	uint64_t uNodeCount = m_vecNodes.size();
 	if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的是“返回上一级”
 	{
@@ -1015,8 +1016,7 @@ HWND CListViewMgr::GetLeftListView()
 
 std::optional<CBookMarksNode> CListViewMgr::FindIndexById(uint64_t uid)
 {
-	std::shared_ptr<CBookMarksMgr> spBookMarksMgr =  CPipeMessageHandler::instance().GetBookMarksMgrPointer();
-	return spBookMarksMgr->FindIndexById(uid);
+	return CBookMarksMgr::instance().FindIndexById(uid);
 }
 
 BOOL CListViewMgr::SaveInsertedFolder(HWND hList, LPARAM lParam)
@@ -1078,8 +1078,8 @@ HWND CListViewMgr::GetRightListView()
 //ItemNode* CListViewMgr::FindVirtualFoldNode(int node_id)
 std::optional<CBookMarksNode> CListViewMgr::FindVirtualFoldNode(int node_id)
 {
-	std::vector<CBookMarksNode> m_vecNodes = CPipeMessageHandler::instance().GetAllBookMarksNodes();
-	for (unsigned int i = 0; i < CPipeMessageHandler::instance().GetBookMarksCnt(); i++)
+	std::vector<CBookMarksNode> m_vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
+	for (unsigned int i = 0; i < CBookMarksMgr::instance().GetBookMarksCnt(); i++)
 	{
 		if (m_vecNodes[i].m_uId == node_id)
 		{
