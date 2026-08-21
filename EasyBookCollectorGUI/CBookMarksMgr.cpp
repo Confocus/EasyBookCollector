@@ -1,11 +1,11 @@
 #include "CBookMarksMgr.h"
-BookMarksMgr::BookMarksMgr() :
+CBookMarksMgr::CBookMarksMgr() :
 	m_nLastFatherNum(-1)
 {
 
 }
 
-BookMarksMgr::~BookMarksMgr()
+CBookMarksMgr::~CBookMarksMgr()
 {
 
 }
@@ -38,7 +38,7 @@ BookMarksMgr::~BookMarksMgr()
 //	{ 12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
 //	{ 13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据" },
 //};
-VOID BookMarksMgr::InsertFolder(const std::wstring s)
+VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 {
 	size_t start = 0;
 	size_t end = s.find(L'/');
@@ -147,7 +147,7 @@ VOID BookMarksMgr::InsertFolder(const std::wstring s)
 //	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //};
-VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des, int64_t nFatherNum)
+VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des, int64_t nFatherNum)
 {
 	CBookMarksNode node;
 	// 截取一段
@@ -162,17 +162,17 @@ VOID BookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std:
 	m_vecNodes.push_back(node);
 }
 
-std::vector<CBookMarksNode>& BookMarksMgr::GetAllBookMarksNodes()
+std::vector<CBookMarksNode>& CBookMarksMgr::GetAllBookMarksNodes()
 {
 	return m_vecNodes;
 }
 
-uint64_t BookMarksMgr::GetBookMarksCnt()
+uint64_t CBookMarksMgr::GetBookMarksCnt()
 {
 	return m_vecNodes.size();
 }
 
-std::optional<CBookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
+std::optional<CBookMarksNode> CBookMarksMgr::FindIndexById(uint64_t uid)
 {
 	auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const CBookMarksNode& item) {
 		return item.m_uId == uid;
@@ -184,12 +184,12 @@ std::optional<CBookMarksNode> BookMarksMgr::FindIndexById(uint64_t uid)
 	return *it;
 }
 
-VOID BookMarksMgr::InsertNewAddedNode()
+VOID CBookMarksMgr::InsertNewAddedNode()
 {
 
 }
 
-CBookMarksNode& BookMarksMgr::GetCurrentNode()
+CBookMarksNode& CBookMarksMgr::GetCurrentNode()
 {
 	return m_uCurrentNode;
 }

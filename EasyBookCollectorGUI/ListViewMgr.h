@@ -3,7 +3,7 @@
 #include <commctrl.h>
 #include "singleton.h"
 #pragma comment(lib, "comctl32.lib")
-#include "PipeCommManager.h"
+#include "PipeMessageHandler.h"
 #include "BookMarksNode.h"
 #define MAX_NAME_LEN 256
 #define ID_BACK_TO_PARENT	-1

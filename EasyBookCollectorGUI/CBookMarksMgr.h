@@ -13,11 +13,11 @@
 #include <map>
 #include "BookMarksNode.h"
 
-class BookMarksMgr
+class CBookMarksMgr
 {
 public:
-	BookMarksMgr();
-	~BookMarksMgr();
+	CBookMarksMgr();
+	~CBookMarksMgr();
 	VOID InsertFolder(const std::wstring);
 	VOID InsertBookInfoUnderFolder(const std::wstring, const std::wstring, int64_t nFatherNum);
 	std::vector<CBookMarksNode>& GetAllBookMarksNodes();

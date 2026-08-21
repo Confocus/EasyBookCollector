@@ -13,7 +13,7 @@
 #include <shellapi.h>
 #include "ListViewMgr.h"
 #include <array>
-#include "PipeCommManager.h"
+#include "PipeMessageHandler.h"
 
 #include <commctrl.h>
 #include <ole2.h>
@@ -32,7 +32,7 @@ CListBoxWndManager g_ListBoxWndMgr;
 //CPipeMgr::CPipeServer g_PipeMgr;测试不同类型的管道用的
 HWND hChildList = NULL;
 //todo:这里改成一个单实例类
-CPipeCommManager g_PipeCommMgr;
+//CPipeCommManager g_PipeCommMgr;
 
 #define MOUSE_LEAVE_MONITOR 2001
 #define ID_MAIN_LISTBOX 3001 // 目录按钮ID
@@ -280,7 +280,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				//但是另一个线程的处理顺序不一定是我这里，因为可能出现一种情况：
 				//就是另一个处理命令的线程可能刚刚要处理，但是m_NodeTobeAdded又被右键修改了
 				//实际上这个队列能保证它所保存的时序和你操作的时序是一致的 //todo：或者后面加个时间戳以进一步保证
-				g_PipeCommMgr.PushGUICommandToQueue(STRING_ADD_ACTIVE_TAB);
+				CPipeMessageHandler::instance().PushGUICommandToQueue(STRING_ADD_ACTIVE_TAB);
 				break;
 			}
 		}
@@ -307,9 +307,10 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 
 //todo:考虑其它健壮性相关的问题，比如一端如果崩溃了怎么办
 //todo:要考察GUI、Daemon、Firefox三个端直接不同的出错情况下或不同启动顺序下是否能够挽救回来
+//启动管道通信组建
 unsigned __stdcall StartCommManager(void* param)
 {
-	g_PipeCommMgr.Run();
+	CPipeMessageHandler::instance().Run();
 	return 0;
 }
 

@@ -13,8 +13,8 @@
 //include 顺序刚好没问题
 //但放在ListViewMgr.h时：
 //触发了头文件循环依赖
-#include "PipeCommManager.h"
-extern CPipeCommManager g_PipeCommMgr;
+#include "PipeMessageHandler.h"
+extern CPipeMessageHandler g_PipeCommMgr;
 
 // 模拟自定义数据（替代本地文件/数据库）
 ItemNode g_szTestNode[] = 
@@ -767,7 +767,7 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 		ListView_InsertItem(hList, &lvi);
 	}
 
-	std::vector<CBookMarksNode> m_vecNodes = g_PipeCommMgr.GetAllBookMarksNodes();
+	std::vector<CBookMarksNode> m_vecNodes = CPipeMessageHandler::instance().GetAllBookMarksNodes();
 	uint64_t uNodeCount = m_vecNodes.size();
 	for (unsigned int i = 0; i < uNodeCount; i++)
 	{
@@ -845,7 +845,7 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 void CListViewMgr::InsertBookMarkIntoFolder(HWND hList, std::optional<std::pair<std::string, std::string>> activeInfo, std::optional<CBookMarksNode> insertedFolder)
 {
 
-	std::vector<CBookMarksNode> vecNodes = g_PipeCommMgr.GetAllBookMarksNodes();
+	std::vector<CBookMarksNode> vecNodes = CPipeMessageHandler::instance().GetAllBookMarksNodes();
 	CBookMarksNode newBookMark = vecNodes.back();
 	SHFILEINFOW sfi = { 0 };
 	// 插入ListView项
@@ -938,7 +938,7 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 		return;
 	}
 
-	std::vector<CBookMarksNode> m_vecNodes = g_PipeCommMgr.GetAllBookMarksNodes();
+	std::vector<CBookMarksNode> m_vecNodes = CPipeMessageHandler::instance().GetAllBookMarksNodes();
 	uint64_t uNodeCount = m_vecNodes.size();
 	if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的是“返回上一级”
 	{
@@ -1015,7 +1015,7 @@ HWND CListViewMgr::GetLeftListView()
 
 std::optional<CBookMarksNode> CListViewMgr::FindIndexById(uint64_t uid)
 {
-	std::shared_ptr<BookMarksMgr> spBookMarksMgr =  g_PipeCommMgr.GetBookMarksMgrPointer();
+	std::shared_ptr<CBookMarksMgr> spBookMarksMgr =  CPipeMessageHandler::instance().GetBookMarksMgrPointer();
 	return spBookMarksMgr->FindIndexById(uid);
 }
 
@@ -1078,8 +1078,8 @@ HWND CListViewMgr::GetRightListView()
 //ItemNode* CListViewMgr::FindVirtualFoldNode(int node_id)
 std::optional<CBookMarksNode> CListViewMgr::FindVirtualFoldNode(int node_id)
 {
-	std::vector<CBookMarksNode> m_vecNodes = g_PipeCommMgr.GetAllBookMarksNodes();
-	for (unsigned int i = 0; i < g_PipeCommMgr.GetBookMarksCnt(); i++)
+	std::vector<CBookMarksNode> m_vecNodes = CPipeMessageHandler::instance().GetAllBookMarksNodes();
+	for (unsigned int i = 0; i < CPipeMessageHandler::instance().GetBookMarksCnt(); i++)
 	{
 		if (m_vecNodes[i].m_uId == node_id)
 		{

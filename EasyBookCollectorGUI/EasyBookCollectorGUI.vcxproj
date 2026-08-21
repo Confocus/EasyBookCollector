@@ -146,7 +146,7 @@
     <ClInclude Include="EasyBookCollectorGUI.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="ListBoxWindowNode.h" />
-    <ClInclude Include="PipeCommManager.h" />
+    <ClInclude Include="PipeMessageHandler.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="todo.h" />
@@ -163,7 +163,7 @@
     <ClCompile Include="MainWindowActions.cpp" />
     <ClCompile Include="EasyBookCollectorGUI.cpp" />
     <ClCompile Include="ListBoxWindowNode.cpp" />
-    <ClCompile Include="PipeCommManager.cpp" />
+    <ClCompile Include="PipeMessageHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="EasyBookCollectorGUI.rc" />
