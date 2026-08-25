@@ -262,7 +262,6 @@ BOOL CPipeMessageHandler::HandleActiveTabInfo(HANDLE hPipe)
 		// 这里是增加到vector，然后将来再点击文件夹进入的时候会自动借助以前的VisitSubListViewFolder来刷新
 		CBookMarksMgr::instance().InsertBookInfoUnderFolder(PublicFuncs::UTF8ToWString(activeInfo->first.c_str(), activeInfo->first.length()),
 			PublicFuncs::UTF8ToWString(activeInfo->second.c_str(), activeInfo->first.length()), InsertedFolder->GetNum());
-		//todo：如何做到先进入目录中再邮件添加？
 
 		bRet = TRUE;
 	} while (0);

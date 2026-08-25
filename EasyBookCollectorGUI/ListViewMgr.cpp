@@ -1003,6 +1003,7 @@ BOOL CListViewMgr::SaveInsertedFolder(HWND hList, LPARAM lParam)
 
 	//返回要插入的那个节点的信息
 	//无论右键点击多少次ListViewItem，都只保存最新的一次
+	//todo：这里要判断，如果右键点击的不是文件夹而是文件，另行处理
 	m_InsertedFolder = FindIndexById(static_cast<uint64_t>(userData));
 	if (!m_InsertedFolder.has_value())
 	{
