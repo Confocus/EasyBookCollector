@@ -164,13 +164,12 @@ VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std
 	m_vecThreadSafeNodes.Append(node);
 }
 
-std::vector<CBookMarksNode> CBookMarksMgr::GetAllBookMarksNodes() const
+const std::vector<CBookMarksNode>& CBookMarksMgr::GetAllBookMarksNodes() const
 {
-	//std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
 	return m_vecThreadSafeNodes.GetData();
 }
 
-uint64_t CBookMarksMgr::GetBookMarksCnt() const
+const uint64_t& CBookMarksMgr::GetBookMarksCnt() const
 {
 	return m_vecThreadSafeNodes.GetSize();
 }

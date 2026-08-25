@@ -136,6 +136,7 @@
     <ClInclude Include="..\public\PipeMgr.h" />
     <ClInclude Include="..\public\publicfuncs.h" />
     <ClInclude Include="..\public\singleton.h" />
+    <ClInclude Include="..\public\threadsafevector.h" />
     <ClInclude Include="BookMarksNode.h" />
     <ClInclude Include="CBookMarksMgr.h" />
     <ClInclude Include="DropTarget.h" />

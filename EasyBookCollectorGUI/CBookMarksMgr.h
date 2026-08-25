@@ -14,57 +14,7 @@
 #include "BookMarksNode.h"
 #include "singleton.h"
 #include <shared_mutex>
-
-
-template<typename T>
-class CThreadSafeVector
-{
-public:
-	VOID Append(T);
-	unsigned GetSize();
-	std::vector<T> GetData() const;
-
-	template<typename F>
-	std::optional<T> FindIf(F&& func);
-private:
-	mutable std::shared_mutex m_rwLock;
-	std::vector<T> m_vecData;
-
-};
-
-template<typename T>
-std::vector<T> CThreadSafeVector<T>::GetData() const
-{
-	std::shared_lock<std::shared_mutex> lock(m_rwLock);
-	return m_vecData;
-}
-
-template<typename T>
-template<typename F>
-std::optional<T> CThreadSafeVector<T>::FindIf(F&& func)
-{
-	std::shared_lock<std::shared_mutex> lock(m_rwLock);
-	auto it = find_if(m_vecData.begin(), m_vecData.end(), func);
-
-	if (it == m_vecData.end())
-		return std::nullopt; // 没找到
-
-	return *it;
-}
-
-template<typename T>
-unsigned CThreadSafeVector<T>::GetSize()
-{
-	std::shared_lock<std::shared_mutex> lock(m_rwLock);
-	return m_vecData.size();
-}
-
-template<typename T>
-VOID CThreadSafeVector<T>::Append(T element)
-{
-	std::unique_lock<std::shared_mutex> lock(m_rwLock);
-	m_vecData.push_back(element);
-}
+#include "threadsafevector.h"
 
 /**
  * @brief 对书签数据进行操作的组建
@@ -76,8 +26,8 @@ class CBookMarksMgr : public Singleton<CBookMarksMgr>
 public:
 	VOID InsertFolder(const std::wstring);
 	VOID InsertBookInfoUnderFolder(const std::wstring, const std::wstring, int64_t nFatherNum);
-	std::vector<CBookMarksNode> GetAllBookMarksNodes() const;
-	uint64_t GetBookMarksCnt() const;
+	const std::vector<CBookMarksNode>& GetAllBookMarksNodes() const;
+	const uint64_t& GetBookMarksCnt() const;
 	std::optional<CBookMarksNode> FindIndexById(uint64_t uid);
 	VOID InsertNewAddedNode();
 	CBookMarksNode& GetCurrentNode();

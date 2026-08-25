@@ -747,8 +747,6 @@ BOOL CListViewMgr::InitImageList()
 void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 {
 	ListView_DeleteAllItems(hList);
-	std::vector<CBookMarksNode> vecNodes;
-	uint64_t uNodeCount = 0;
 	if (parent_id != -1) // 如果不是根目录的时候，显示“返回上一级”
 	{
 		SHFILEINFOW sfi = { 0 };
@@ -770,8 +768,9 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 		lvi.iImage = sfi.iIcon;
 		ListView_InsertItem(hList, &lvi);
 	}
-	vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
-	uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
+
+	const std::vector<CBookMarksNode>& vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
+	const unsigned& uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
 	for (unsigned int i = 0; i < uNodeCount; i++)
 	{
 		if (vecNodes[i].m_nFatherNum != parent_id)
@@ -783,7 +782,7 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 		LVITEMW lvi = { 0 };
 		lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
 		lvi.iItem = ListView_GetItemCount(hList);
-		lvi.pszText = vecNodes[i].m_sName.data();//todo：这里没问题？
+		lvi.pszText = const_cast<LPWSTR>(vecNodes[i].m_sName.data());//todo：这里用指针指向const内容
 		// 图标：0=文件夹，1=文件
 		lvi.iImage = vecNodes[i].m_bIsFolder ? 0 : 1;
 		// 绑定自定义节点ID（关键：双击时识别是哪个节点）
@@ -881,8 +880,6 @@ void CListViewMgr::InitSingleListView(HWND hListView)
 
 void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, HWND hListView)
 {
-	std::vector<CBookMarksNode> vecNodes;
-	uint64_t uNodeCount = 0;
 	/*NMITEMACTIVATE 是 Windows 通用控件中专门用于表示 “项被激活” 的通知结构
 		—— 核心作用是：当用户通过点击、双击、按回车等方式 “激活” 控件中的某一项（比如列表视图、树视图、列表框的项）时，
 		控件会通过 WM_NOTIFY 消息把这个结构传给父窗口，携带 “激活事件” 的详细信息。*/
@@ -901,8 +898,8 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 	{
 		return;
 	}
-	vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
-	uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
+	const std::vector<CBookMarksNode>& vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
+	const unsigned& uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
 	//uint64_t uNodeCount = m_vecNodes.size();
 	if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的是“返回上一级”
 	{
@@ -1040,9 +1037,9 @@ HWND CListViewMgr::GetRightListView()
 //ItemNode* CListViewMgr::FindVirtualFoldNode(int node_id)
 std::optional<CBookMarksNode> CListViewMgr::FindVirtualFoldNode(int node_id)
 {
-	std::vector<CBookMarksNode> vecNodes;
-	vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
-	for (unsigned int i = 0; i < CBookMarksMgr::instance().GetBookMarksCnt(); i++)
+	const std::vector<CBookMarksNode>& vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
+	const unsigned& uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
+	for (unsigned int i = 0; i < uNodeCount; i++)
 	{
 		if (vecNodes[i].m_uId == node_id)
 		{
