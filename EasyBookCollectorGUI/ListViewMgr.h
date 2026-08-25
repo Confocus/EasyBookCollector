@@ -122,7 +122,7 @@ public:
 
 	std::optional<CBookMarksNode> GetInsertedFolder();
 
-	void InsertBookMarkIntoFolder(HWND hList, std::optional<std::pair<std::string, std::string>> activeInfo, std::optional<CBookMarksNode> insertedFolder);
+	//void InsertBookMarkIntoFolder(HWND hList, std::optional<std::pair<std::string, std::string>> activeInfo, std::optional<CBookMarksNode> insertedFolder);
 
 private:
 	//Singleton<CListViewMgr>是友元可以调用private中的CListViewMgr的构造
@@ -192,5 +192,7 @@ private:
 	//ToBeAddedNodes会在另一个线程读取，不要在另一个线程读的时候修改这里，而且将来也可能改成队列
 	//注意，std::mutex是不可拷贝的
 	std::mutex m_mtxToBeAddedNodes;
-	std::vector<CBookMarksNode> m_vecNodes;//显示数据时保存BookMarksNode列表在对象里，以免每次都更新
+	//显示数据时保存BookMarksNode列表在对象里，以免每次都更新
+	// 但因为BookMarksMgr中会实时更新，数据，所以每次都必须重新获取数据
+	//std::vector<CBookMarksNode> m_vecNodes;
 };

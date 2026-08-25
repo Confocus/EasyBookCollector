@@ -117,14 +117,12 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 		// 截取一段
 		node.m_bIsFolder = true;
 		node.m_nFatherNum = m_nLastFatherNum;
-		//node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
-		node.m_uNum = m_vecNodes.GetSize() + 1;//计数从1开始
+		node.m_uNum = m_vecThreadSafeNodes.GetSize() + 1;//计数从1开始
 
 		m_nLastFatherNum = node.m_uNum;
 		node.m_sName = vecFolders[i];
 		node.m_uId = m_uBookMarkNodeId++;
-		//m_vecNodes.push_back(node);
-		m_vecNodes.Append(node);
+		m_vecThreadSafeNodes.Append(node);
 		m_uCurrentNode = node;
 		m_vecLastNodes.push_back(node);
 	}
@@ -160,43 +158,28 @@ VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std
 	node.m_bIsFolder = false;
 	node.m_sName = name;
 	node.m_sDescription = des;
-	//node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
-	node.m_uNum = m_vecNodes.GetSize() + 1;//计数从1开始
+	node.m_uNum = m_vecThreadSafeNodes.GetSize() + 1;//计数从1开始
 	node.m_uId = m_uBookMarkNodeId++;//这玩意儿有用吗？通过uId查找节点的时候需要一个唯一编号
-
-	//node.m_nFatherNum = m_uCurrentNode.m_uNum;
 	node.m_nFatherNum = nFatherNum;
-	//m_vecNodes.push_back(node);
-	m_vecNodes.Append(node);
+	m_vecThreadSafeNodes.Append(node);
 }
 
 std::vector<CBookMarksNode> CBookMarksMgr::GetAllBookMarksNodes() const
 {
 	//std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
-	return m_vecNodes.GetData();
+	return m_vecThreadSafeNodes.GetData();
 }
 
 uint64_t CBookMarksMgr::GetBookMarksCnt() const
 {
-	//std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
-	//return m_vecNodes.size();
-	return m_vecNodes.GetSize();
+	return m_vecThreadSafeNodes.GetSize();
 }
 
 std::optional<CBookMarksNode> CBookMarksMgr::FindIndexById(uint64_t uid)
 {
-	//std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
-	return m_vecNodes.FindIf([uid](const CBookMarksNode& item) {
+	return m_vecThreadSafeNodes.FindIf([uid](const CBookMarksNode& item) {
 		return item.m_uId == uid;
 		});
-	/*auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const CBookMarksNode& item) {
-		return item.m_uId == uid;
-		});*/
-
-	//if (it == m_vecNodes.end())
-	//	return std::nullopt; // 没找到
-
-	//return *it;
 }
 
 VOID CBookMarksMgr::InsertNewAddedNode()

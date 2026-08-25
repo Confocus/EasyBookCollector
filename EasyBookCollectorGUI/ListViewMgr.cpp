@@ -95,7 +95,7 @@ BOOL CListViewMgr::InitDoubleListViewAndLoadData(HWND hWnd)
 		SHGFI_SYSICONINDEX | SHGFI_SMALLICON
 	);
 
-	m_vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
+	//m_vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	//InitImageList();
 	// 初始化图标列表
 	RECT rcClient;
@@ -747,6 +747,8 @@ BOOL CListViewMgr::InitImageList()
 void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 {
 	ListView_DeleteAllItems(hList);
+	std::vector<CBookMarksNode> vecNodes;
+	uint64_t uNodeCount = 0;
 	if (parent_id != -1) // 如果不是根目录的时候，显示“返回上一级”
 	{
 		SHFILEINFOW sfi = { 0 };
@@ -768,11 +770,11 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 		lvi.iImage = sfi.iIcon;
 		ListView_InsertItem(hList, &lvi);
 	}
-
-	uint64_t uNodeCount = m_vecNodes.size();
+	vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
+	uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
 	for (unsigned int i = 0; i < uNodeCount; i++)
 	{
-		if (m_vecNodes[i].m_nFatherNum != parent_id)
+		if (vecNodes[i].m_nFatherNum != parent_id)
 		{
 			continue;
 		}
@@ -781,12 +783,12 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 		LVITEMW lvi = { 0 };
 		lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
 		lvi.iItem = ListView_GetItemCount(hList);
-		lvi.pszText = m_vecNodes[i].m_sName.data();//todo：这里没问题？
+		lvi.pszText = vecNodes[i].m_sName.data();//todo：这里没问题？
 		// 图标：0=文件夹，1=文件
-		lvi.iImage = m_vecNodes[i].m_bIsFolder ? 0 : 1;
+		lvi.iImage = vecNodes[i].m_bIsFolder ? 0 : 1;
 		// 绑定自定义节点ID（关键：双击时识别是哪个节点）
 		//这里保存u_Id是必要的，否则无法点进文件夹
-		lvi.lParam = m_vecNodes[i].m_uId;
+		lvi.lParam = vecNodes[i].m_uId;
 		lvi.iIndent = 1;
 		//lvi.iSubItem = 1;
 		const wchar_t* pszPath = NULL;
@@ -802,76 +804,37 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 		lvi.iImage = sfi.iIcon;
 		ListView_InsertItem(hList, &lvi);
 	}
-
-	//// 清空列表
-	//ListView_DeleteAllItems(hList);
-	//if (parent_id != -1) // 不是根目录的时候，显示“返回上一级”
-	//{
-	//	LVITEMW lvi = { 0 };
-	//	lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;
-	//	lvi.iItem = 0; 
-	//	lvi.pszText = const_cast<WCHAR*>(L"返回上一级..."); 
-	//	lvi.iImage = 2; 
-	//	lvi.lParam = ID_BACK_TO_PARENT; // 绑定专属ID，用于识别点击
-	//	lvi.iIndent = 1; // 无缩进（根级显示）
-	//	//lviBack.iSubItem = 0;
-	//	ListView_InsertItem(hList, &lvi);
-	//}
-	//
-	//std::vector<BookMarksNode> m_vecNodes = PipeCommMgr.GetAllBookMarksNodes();
-	//uint64_t uNodeCount = m_vecNodes.size();
-	//for (unsigned int i = 0; i < uNodeCount; i++)
-	//{
-	//	if (m_vecNodes[i].m_nFatherNum != parent_id)
-	//	{
-	//		continue;
-	//	}
-
-	//	// 插入ListView项
-	//	LVITEMW lvi = { 0 };
-	//	lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
-	//	lvi.iItem = ListView_GetItemCount(hList);
-	//	lvi.pszText = m_vecNodes[i].m_sName.data();
-	//	// 图标：0=文件夹，1=文件
-	//	lvi.iImage = m_vecNodes[i].m_bIsFolder ? 0 : 1;
-	//	// 绑定自定义节点ID（关键：双击时识别是哪个节点）
-	//	//这里保存u_Id是必要的，否则无法点进文件夹
-	//	lvi.lParam = m_vecNodes[i].m_uId;
-	//	lvi.iIndent = 1;
-	//	//lvi.iSubItem = 1;
-	//	ListView_InsertItem(hList, &lvi);
-	//}
 }
 
-void CListViewMgr::InsertBookMarkIntoFolder(HWND hList, std::optional<std::pair<std::string, std::string>> activeInfo, std::optional<CBookMarksNode> insertedFolder)
-{
-	CBookMarksNode newBookMark = m_vecNodes.back();
-	SHFILEINFOW sfi = { 0 };
-	// 插入ListView项
-	LVITEMW lvi = { 0 };
-	lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
-	lvi.iItem = ListView_GetItemCount(hList);
-	lvi.pszText = newBookMark.m_sName.data();
-	// 图标：0=文件夹，1=文件
-	lvi.iImage = 1;
-	// 绑定自定义节点ID（关键：双击时识别是哪个节点）
-	//这里保存u_Id是必要的，否则无法点进文件夹
-	lvi.lParam = newBookMark.m_uId;
-	lvi.iIndent = 1;
-	//lvi.iSubItem = 1;
-	const wchar_t* pszPath = NULL;
-	pszPath = (lvi.iImage == 0) ? L"D:\\Tools" : L"D:\\Tools\\test.txt";//todo：待优化部分
-
-	SHGetFileInfoW(
-		pszPath,
-		FILE_ATTRIBUTE_NORMAL,
-		&sfi,
-		sizeof(sfi),
-		SHGFI_SYSICONINDEX | SHGFI_SMALLICON
-	);
-	lvi.iImage = sfi.iIcon;
-	ListView_InsertItem(hList, &lvi);
-}
+//void CListViewMgr::InsertBookMarkIntoFolder(HWND hList, std::optional<std::pair<std::string, std::string>> activeInfo, std::optional<CBookMarksNode> insertedFolder)
+//{
+//	CBookMarksNode newBookMark = m_vecNodes.back();
+//	SHFILEINFOW sfi = { 0 };
+//	// 插入ListView项
+//	LVITEMW lvi = { 0 };
+//	lvi.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM | LVIF_INDENT;// 
+//	lvi.iItem = ListView_GetItemCount(hList);
+//	lvi.pszText = newBookMark.m_sName.data();
+//	// 图标：0=文件夹，1=文件
+//	lvi.iImage = 1;
+//	// 绑定自定义节点ID（关键：双击时识别是哪个节点）
+//	//这里保存u_Id是必要的，否则无法点进文件夹
+//	lvi.lParam = newBookMark.m_uId;
+//	lvi.iIndent = 1;
+//	//lvi.iSubItem = 1;
+//	const wchar_t* pszPath = NULL;
+//	pszPath = (lvi.iImage == 0) ? L"D:\\Tools" : L"D:\\Tools\\test.txt";//todo：待优化部分
+//
+//	SHGetFileInfoW(
+//		pszPath,
+//		FILE_ATTRIBUTE_NORMAL,
+//		&sfi,
+//		sizeof(sfi),
+//		SHGFI_SYSICONINDEX | SHGFI_SMALLICON
+//	);
+//	lvi.iImage = sfi.iIcon;
+//	ListView_InsertItem(hList, &lvi);
+//}
 
 void CListViewMgr::ListViewInsertColumn(HWND hWnd)
 {
@@ -918,6 +881,8 @@ void CListViewMgr::InitSingleListView(HWND hListView)
 
 void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, HWND hListView)
 {
+	std::vector<CBookMarksNode> vecNodes;
+	uint64_t uNodeCount = 0;
 	/*NMITEMACTIVATE 是 Windows 通用控件中专门用于表示 “项被激活” 的通知结构
 		—— 核心作用是：当用户通过点击、双击、按回车等方式 “激活” 控件中的某一项（比如列表视图、树视图、列表框的项）时，
 		控件会通过 WM_NOTIFY 消息把这个结构传给父窗口，携带 “激活事件” 的详细信息。*/
@@ -936,17 +901,18 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 	{
 		return;
 	}
-
-	uint64_t uNodeCount = m_vecNodes.size();
+	vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
+	uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
+	//uint64_t uNodeCount = m_vecNodes.size();
 	if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的是“返回上一级”
 	{
 		std::optional<signed int> nParentId;
 		for (unsigned int i = 0; i < uNodeCount; i++)
 		{
-			if (m_vecNodes[i].m_uNum == m_nLeftCurrentParent)
+			if (vecNodes[i].m_uNum == m_nLeftCurrentParent)
 			{
-				nParentId = m_vecNodes[i].m_nFatherNum; 
-				m_nLeftCurrentParent = m_vecNodes[i].m_nFatherNum;
+				nParentId = vecNodes[i].m_nFatherNum;
+				m_nLeftCurrentParent = vecNodes[i].m_nFatherNum;
 				break;
 			}
 		}
@@ -1045,7 +1011,6 @@ BOOL CListViewMgr::SaveInsertedFolder(HWND hList, LPARAM lParam)
 	{
 		return FALSE;
 	}
-	//m_vecNodesToBeAdded.push_back(ToBeAddedNode.value());
 	
 	return TRUE;
 }
@@ -1075,11 +1040,13 @@ HWND CListViewMgr::GetRightListView()
 //ItemNode* CListViewMgr::FindVirtualFoldNode(int node_id)
 std::optional<CBookMarksNode> CListViewMgr::FindVirtualFoldNode(int node_id)
 {
+	std::vector<CBookMarksNode> vecNodes;
+	vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	for (unsigned int i = 0; i < CBookMarksMgr::instance().GetBookMarksCnt(); i++)
 	{
-		if (m_vecNodes[i].m_uId == node_id)
+		if (vecNodes[i].m_uId == node_id)
 		{
-			return m_vecNodes[i];
+			return vecNodes[i];
 		}
 	}
 	return std::nullopt;
