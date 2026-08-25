@@ -40,7 +40,7 @@ CBookMarksMgr::~CBookMarksMgr()
 //};
 VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 {
-	std::unique_lock<std::shared_mutex> lock(m_rwVecNodes);
+	//std::unique_lock<std::shared_mutex> lock(m_rwVecNodes);
 
 	size_t start = 0;
 	size_t end = s.find(L'/');
@@ -117,11 +117,14 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 		// 截取一段
 		node.m_bIsFolder = true;
 		node.m_nFatherNum = m_nLastFatherNum;
-		node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
+		//node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
+		node.m_uNum = m_vecNodes.GetSize() + 1;//计数从1开始
+
 		m_nLastFatherNum = node.m_uNum;
 		node.m_sName = vecFolders[i];
 		node.m_uId = m_uBookMarkNodeId++;
-		m_vecNodes.push_back(node);
+		//m_vecNodes.push_back(node);
+		m_vecNodes.Append(node);
 		m_uCurrentNode = node;
 		m_vecLastNodes.push_back(node);
 	}
@@ -151,43 +154,49 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 //};
 VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des, int64_t nFatherNum)
 {
-	std::unique_lock<std::shared_mutex> lock(m_rwVecNodes);
+	//std::unique_lock<std::shared_mutex> lock(m_rwVecNodes);
 	CBookMarksNode node;
 	// 截取一段
 	node.m_bIsFolder = false;
 	node.m_sName = name;
 	node.m_sDescription = des;
-	node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
+	//node.m_uNum = m_vecNodes.size() + 1;//计数从1开始
+	node.m_uNum = m_vecNodes.GetSize() + 1;//计数从1开始
 	node.m_uId = m_uBookMarkNodeId++;//这玩意儿有用吗？通过uId查找节点的时候需要一个唯一编号
 
 	//node.m_nFatherNum = m_uCurrentNode.m_uNum;
 	node.m_nFatherNum = nFatherNum;
-	m_vecNodes.push_back(node);
+	//m_vecNodes.push_back(node);
+	m_vecNodes.Append(node);
 }
 
 std::vector<CBookMarksNode> CBookMarksMgr::GetAllBookMarksNodes() const
 {
-	std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
-	return m_vecNodes;
+	//std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
+	return m_vecNodes.GetData();
 }
 
 uint64_t CBookMarksMgr::GetBookMarksCnt() const
 {
-	std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
-	return m_vecNodes.size();
+	//std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
+	//return m_vecNodes.size();
+	return m_vecNodes.GetSize();
 }
 
 std::optional<CBookMarksNode> CBookMarksMgr::FindIndexById(uint64_t uid)
 {
-	std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
-	auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const CBookMarksNode& item) {
+	//std::shared_lock<std::shared_mutex> lock(m_rwVecNodes);
+	return m_vecNodes.FindIf([uid](const CBookMarksNode& item) {
 		return item.m_uId == uid;
 		});
+	/*auto it = find_if(m_vecNodes.begin(), m_vecNodes.end(), [uid](const CBookMarksNode& item) {
+		return item.m_uId == uid;
+		});*/
 
-	if (it == m_vecNodes.end())
-		return std::nullopt; // 没找到
+	//if (it == m_vecNodes.end())
+	//	return std::nullopt; // 没找到
 
-	return *it;
+	//return *it;
 }
 
 VOID CBookMarksMgr::InsertNewAddedNode()
