@@ -19,6 +19,8 @@ public:
 	}
 
 	uint64_t GetNum();
+
+	BOOL IsNodeFolder();
 public:
 	BOOL m_bIsFolder;
 	uint64_t m_uNum;

@@ -163,7 +163,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 						node->m_sName.c_str(),
 						node->m_sDescription.c_str());
 				}
-				
 			}
 			else if (pNMHDR->hwndFrom == CListViewMgr::instance().GetRightListView())
 			{
@@ -180,6 +179,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (pNmLv->iItem != -1)
 			{
 				CListViewMgr::instance().SaveInsertedFolder(pNMHDR->hwndFrom, lParam);
+				std::optional<CBookMarksNode> node = CListViewMgr::instance().GetInsertedFolder();
+				
 				// 选中被右键点击的那一行（可选，很多UI习惯右键自动选中该行）
 				ListView_SetItemState(pNMHDR->hwndFrom, pNmLv->iItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 
@@ -189,8 +190,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 				//右键某个ListViewItem弹出菜单决定添加到哪里
 				HMENU hPopup = CreatePopupMenu();
-				AppendMenuW(hPopup, MF_STRING, ID_POPUP_ADD, L"添加");
-				AppendMenuW(hPopup, MF_STRING, ID_POPUP_DELETE, L"删除");
+				if (node->IsNodeFolder())
+				{
+					AppendMenuW(hPopup, MF_STRING, ID_POPUP_ADD, L"添加");
+				}
+				else
+				{
+					AppendMenuW(hPopup, MF_STRING, ID_POPUP_DELETE, L"删除");
+				}
 
 				TrackPopupMenu(
 					hPopup,
@@ -201,7 +208,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					nullptr
 				);
 				DestroyMenu(hPopup);
-
 			}
 		}
 		break;
