@@ -206,7 +206,43 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		break;
 	}
+	case WM_CONTEXTMENU:
+	{
+		HWND hLv = (HWND)wParam;
 
+		// 取出屏幕坐标
+		int x = ((int)(short)LOWORD(lParam));
+		int y = ((int)(short)HIWORD(lParam));
+
+		// 屏幕坐标 → ListView客户区坐标
+		POINT pt = { x, y };
+		::ScreenToClient(hLv, &pt);
+
+		LVHITTESTINFO ht{};
+		ht.pt = pt;
+		//::ListView_SubItemHitTest(hLv, &ht);
+
+		//bool bClickOnItem = (ht.iItem != -1); // 是否点到条目
+
+		HMENU hPopup = CreatePopupMenu();
+		AppendMenuW(hPopup, MF_STRING, ID_POPUP_ADD, L"添加");
+		AppendMenuW(hPopup, MF_STRING, ID_POPUP_DELETE, L"删除");
+
+		// 加载你的弹出菜单
+		/*HMENU hMenuPopup = ::LoadMenu(g_hInstance, MAKEINTRESOURCE(IDR_POPUP_MENU1));
+		HMENU hSubMenu = ::GetSubMenu(hMenuPopup, 0);*/
+
+		::EnableMenuItem(hPopup, ID_POPUP_DELETE, MF_BYCOMMAND | MF_GRAYED);
+		::EnableMenuItem(hPopup, ID_POPUP_ADD, MF_BYCOMMAND | MF_ENABLED);
+
+		// 弹出菜单，TPM_RIGHTBUTTON：右键弹出
+		::TrackPopupMenu(hPopup, TPM_RIGHTBUTTON | TPM_RETURNCMD,
+			x, y, 0, hWnd, nullptr);
+
+		::DestroyMenu(hPopup);
+		
+		break;
+	}
 	// 处理Backspace返回上一级
 	case WM_KEYDOWN: 
 	{
