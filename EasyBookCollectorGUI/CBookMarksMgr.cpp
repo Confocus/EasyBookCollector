@@ -123,7 +123,7 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 		node.m_nFatherId = m_nLastFatherId;
 		//node.m_uNum = m_vecThreadSafeNodes.GetSize() + 1;//计数从1开始
 
-		m_nLastFatherId = m_vecThreadSafeNodes.GetSize();
+		m_nLastFatherId = m_vecThreadSafeNodes.GetSize();//父节点的信息恰好就是vector长度
 		node.m_sName = vecFolders[i];
 		node.m_uId = m_uBookMarkNodeId++;
 		m_vecThreadSafeNodes.Append(node);
@@ -163,7 +163,7 @@ VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std
 	node.m_sName = name;
 	node.m_sDescription = des;
 	//node.m_uNum = m_vecThreadSafeNodes.GetSize() + 1;//计数从1开始
-	node.m_uId = m_uBookMarkNodeId++;//这玩意儿有用吗？通过uId查找节点的时候需要一个唯一编号
+	node.m_uId = m_uBookMarkNodeId++;//通过uId查找节点的时候需要一个唯一编号
 	node.m_nFatherId = nFatherId;
 	m_vecThreadSafeNodes.Append(node);
 }

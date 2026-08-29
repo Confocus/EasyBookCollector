@@ -879,6 +879,55 @@ void CListViewMgr::InitSingleListView(HWND hListView)
 	ListView_SetExtendedListViewStyle(hListView, dwExStyle);
 }
 
+void CListViewMgr::RefreshCurrentListView(int64_t uParentId)
+{
+	//m_nLeftCurrentParent = node->GetId();
+	LoadVirtualFolders(m_hCurrVisitedListView, uParentId);
+
+	//const std::vector<CBookMarksNode>& vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
+	//const unsigned& uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
+	//if (ID_BACK_TO_PARENT == uParentId)//如果点击的是“返回上一级”
+	//{
+	//	std::optional<signed int> nParentId;
+	//	for (unsigned int i = 0; i < uNodeCount; i++)
+	//	{
+	//		if (vecNodes[i].GetId() == m_nLeftCurrentParent)
+	//		{
+	//			nParentId = vecNodes[i].m_nFatherId;
+	//			m_nLeftCurrentParent = vecNodes[i].m_nFatherId;
+	//			break;
+	//		}
+	//	}
+	//	if (!nParentId.has_value())
+	//	{
+	//		return;
+	//	}
+	//	LoadVirtualFolders(m_hCurrVisitedListView, nParentId.value());
+	//}
+	//else
+	//{
+	//	std::optional<CBookMarksNode> node = FindVirtualFoldNode(lvItem.lParam);
+	//	if (!node.has_value())
+	//	{
+	//		return;
+	//	}
+
+	//	if (node->m_bIsFolder)
+	//	{
+	//		// 进入文件夹：更新当前父节点，重新加载
+	//		m_nLeftCurrentParent = node->GetId();
+	//		LoadVirtualFolders(m_hCurrVisitedListView, m_nLeftCurrentParent);
+	//	}
+	//	else if (!node->m_bIsFolder)
+	//	{
+	//		// 点击数据项：显示自定义数据
+	//		WCHAR msg[512];
+	//		wsprintfW(msg, L"自定义数据：\n名称：%s\n数据库ID：%d\n描述：%s",
+	//			node->m_sName, node->m_uId, node->m_sDescription);
+	//		//MessageBoxW(hWnd, msg, L"自定义数据详情", MB_OK);
+	//	}
+	//}
+}
 
 void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, HWND hListView)
 {
@@ -902,7 +951,6 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 	}
 	const std::vector<CBookMarksNode>& vecNodes = CBookMarksMgr::instance().GetAllBookMarksNodes();
 	const unsigned& uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
-	//uint64_t uNodeCount = m_vecNodes.size();
 	if (ID_BACK_TO_PARENT == lvItem.lParam)//如果点击的是“返回上一级”
 	{
 		std::optional<signed int> nParentId;
@@ -983,11 +1031,11 @@ std::optional<CBookMarksNode> CListViewMgr::FindIndexById(uint64_t uid)
 
 BOOL CListViewMgr::SaveInsertedFolder(HWND hList, LPARAM lParam)
 {
-	std::lock_guard<std::mutex> lk(m_mtxToBeAddedNodes);
+	std::lock_guard<std::mutex> lk(m_mtxToBeAddedNodes);//todo：替换成Safe队列
 	NMHDR* pNMHDR = (NMHDR*)lParam;
 	NMLISTVIEW* pNMLV = (NMLISTVIEW*)lParam;
 	int nItem = pNMLV->iItem;
-	if (nItem == -1)//点击到的不是ListViewItem
+	if (nItem == -1)//点击到的不是ListViewItem而是空白处
 	{
 		uint32_t nItemCnt = ListView_GetItemCount(hList);
 		if (nItemCnt < 0)
@@ -997,7 +1045,7 @@ BOOL CListViewMgr::SaveInsertedFolder(HWND hList, LPARAM lParam)
 		WCHAR szBuf[MAX_NAME_LEN] = { 0 };
 		LVITEMW lvi{};
 		lvi.mask = LVIF_TEXT | LVIF_PARAM | LVIF_STATE;
-		lvi.iItem = 6;
+		lvi.iItem = 1;
 		lvi.iSubItem = 0;
 		lvi.pszText = szBuf;
 		lvi.cchTextMax = ARRAYSIZE(szBuf);
@@ -1009,17 +1057,13 @@ BOOL CListViewMgr::SaveInsertedFolder(HWND hList, LPARAM lParam)
 		uint32_t uId = lvi.lParam;
 		std::optional<CBookMarksNode> node = FindIndexById(static_cast<uint64_t>(uId));
 		uint32_t uFatherId = node->m_nFatherId;
-		std::optional<CBookMarksNode> node2 = FindIndexById(static_cast<uint64_t>(uFatherId));
-
-		m_InsertedFolder = node2;
+		m_InsertedFolder = FindIndexById(static_cast<uint64_t>(uFatherId));
 		if (!m_InsertedFolder.has_value())
 		{
 			return FALSE;
 		}
-		//todo：取该目录下的第一个或者第二个节点，然后拿到他的父节点信息
-		return TRUE; // 无效
+		return TRUE; 
 	}
-
 
 	LVITEM lvi = { 0 };
 	TCHAR szText[256] = { 0 };
@@ -1056,6 +1100,7 @@ void CListViewMgr::VisitListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
 	if (pNMHDR->code == NM_DBLCLK)
 	{
+		m_hCurrVisitedListView = pNMHDR->hwndFrom;
 		VisitSubListViewFolder(hWnd, msg, wParam, lParam, pNMHDR->hwndFrom);
 	}
 }

@@ -263,6 +263,7 @@ BOOL CPipeMessageHandler::HandleActiveTabInfo(HANDLE hPipe)
 		CBookMarksMgr::instance().InsertBookInfoUnderFolder(PublicFuncs::UTF8ToWString(activeInfo->first.c_str(), activeInfo->first.length()),
 			PublicFuncs::UTF8ToWString(activeInfo->second.c_str(), activeInfo->first.length()), InsertedFolder->GetId());
 
+		CListViewMgr::instance().RefreshCurrentListView(InsertedFolder->GetId());
 		bRet = TRUE;
 	} while (0);
 	

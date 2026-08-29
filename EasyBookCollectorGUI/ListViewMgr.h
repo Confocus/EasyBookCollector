@@ -123,7 +123,7 @@ public:
 	std::optional<CBookMarksNode> GetInsertedFolder();
 
 	//void InsertBookMarkIntoFolder(HWND hList, std::optional<std::pair<std::string, std::string>> activeInfo, std::optional<CBookMarksNode> insertedFolder);
-
+	void RefreshCurrentListView(int64_t uParentId);
 private:
 	//Singleton<CListViewMgr>是友元可以调用private中的CListViewMgr的构造
 	CListViewMgr();
@@ -195,4 +195,6 @@ private:
 	//显示数据时保存BookMarksNode列表在对象里，以免每次都更新
 	// 但因为BookMarksMgr中会实时更新，数据，所以每次都必须重新获取数据
 	std::vector<CBookMarksNode> m_vecNodes;
+
+	HWND m_hCurrVisitedListView = NULL;
 };
