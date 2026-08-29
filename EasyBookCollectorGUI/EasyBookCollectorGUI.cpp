@@ -204,51 +204,82 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					TPM_RIGHTBUTTON | TPM_BOTTOMALIGN,
 					pt.x, pt.y,
 					0,
-					hWnd,   // 父窗口接收菜单命令 WM\_COMMAND
+					hWnd,   // 父窗口接收菜单命令 WM_COMMAND
 					nullptr
 				);
 				DestroyMenu(hPopup);
 			}
+			else
+			{
+				CListViewMgr::instance().SaveInsertedFolder(pNMHDR->hwndFrom, lParam);
+
+				NMLISTVIEW* pNmLv = (NMLISTVIEW*)lParam;
+				// 如果需要屏幕坐标
+				POINT pt = pNmLv->ptAction;
+				// 把控件客户坐标转为屏幕坐标，TrackPopupMenu需要屏幕坐标
+				ClientToScreen(pNMHDR->hwndFrom, &pt);
+				HMENU hPopup = CreatePopupMenu();
+				AppendMenuW(hPopup, MF_STRING, ID_POPUP_ADD, L"添加");
+				AppendMenuW(hPopup, MF_STRING, ID_POPUP_DELETE, L"删除");
+
+				// 加载弹出菜单的另一种方法
+				/*HMENU hMenuPopup = ::LoadMenu(g_hInstance, MAKEINTRESOURCE(IDR_POPUP_MENU1));
+				HMENU hSubMenu = ::GetSubMenu(hMenuPopup, 0);*/
+
+				::EnableMenuItem(hPopup, ID_POPUP_DELETE, MF_BYCOMMAND | MF_GRAYED);
+				::EnableMenuItem(hPopup, ID_POPUP_ADD, MF_BYCOMMAND | MF_ENABLED);
+
+				// 弹出菜单，TPM_RIGHTBUTTON：右键弹出
+				::TrackPopupMenu(
+					hPopup, 
+					TPM_RIGHTBUTTON ,//| TPM_RETURNCMD
+					pt.x, pt.y, 
+					0, 
+					hWnd, 
+					nullptr);
+
+				::DestroyMenu(hPopup);
+			}
 		}
 		break;
 	}
-	case WM_CONTEXTMENU:
-	{
-		HWND hLv = (HWND)wParam;
+	//case WM_CONTEXTMENU:
+	//{
+	//	HWND hLv = (HWND)wParam;
 
-		// 取出屏幕坐标
-		int x = ((int)(short)LOWORD(lParam));
-		int y = ((int)(short)HIWORD(lParam));
+	//	// 取出屏幕坐标
+	//	int x = ((int)(short)LOWORD(lParam));
+	//	int y = ((int)(short)HIWORD(lParam));
 
-		// 屏幕坐标 → ListView客户区坐标
-		POINT pt = { x, y };
-		::ScreenToClient(hLv, &pt);
+	//	// 屏幕坐标 → ListView客户区坐标
+	//	POINT pt = { x, y };
+	//	::ScreenToClient(hLv, &pt);
 
-		LVHITTESTINFO ht{};
-		ht.pt = pt;
-		//::ListView_SubItemHitTest(hLv, &ht);
+	//	LVHITTESTINFO ht{};
+	//	ht.pt = pt;
+	//	//::ListView_SubItemHitTest(hLv, &ht);
 
-		//bool bClickOnItem = (ht.iItem != -1); // 是否点到条目
+	//	//bool bClickOnItem = (ht.iItem != -1); // 是否点到条目
 
-		HMENU hPopup = CreatePopupMenu();
-		AppendMenuW(hPopup, MF_STRING, ID_POPUP_ADD, L"添加");
-		AppendMenuW(hPopup, MF_STRING, ID_POPUP_DELETE, L"删除");
+	//	HMENU hPopup = CreatePopupMenu();
+	//	AppendMenuW(hPopup, MF_STRING, ID_POPUP_ADD, L"添加");
+	//	AppendMenuW(hPopup, MF_STRING, ID_POPUP_DELETE, L"删除");
 
-		// 加载你的弹出菜单
-		/*HMENU hMenuPopup = ::LoadMenu(g_hInstance, MAKEINTRESOURCE(IDR_POPUP_MENU1));
-		HMENU hSubMenu = ::GetSubMenu(hMenuPopup, 0);*/
+	//	// 加载你的弹出菜单
+	//	/*HMENU hMenuPopup = ::LoadMenu(g_hInstance, MAKEINTRESOURCE(IDR_POPUP_MENU1));
+	//	HMENU hSubMenu = ::GetSubMenu(hMenuPopup, 0);*/
 
-		::EnableMenuItem(hPopup, ID_POPUP_DELETE, MF_BYCOMMAND | MF_GRAYED);
-		::EnableMenuItem(hPopup, ID_POPUP_ADD, MF_BYCOMMAND | MF_ENABLED);
+	//	::EnableMenuItem(hPopup, ID_POPUP_DELETE, MF_BYCOMMAND | MF_GRAYED);
+	//	::EnableMenuItem(hPopup, ID_POPUP_ADD, MF_BYCOMMAND | MF_ENABLED);
 
-		// 弹出菜单，TPM_RIGHTBUTTON：右键弹出
-		::TrackPopupMenu(hPopup, TPM_RIGHTBUTTON | TPM_RETURNCMD,
-			x, y, 0, hWnd, nullptr);
+	//	// 弹出菜单，TPM_RIGHTBUTTON：右键弹出
+	//	::TrackPopupMenu(hPopup, TPM_RIGHTBUTTON | TPM_RETURNCMD,
+	//		x, y, 0, hWnd, nullptr);
 
-		::DestroyMenu(hPopup);
-		
-		break;
-	}
+	//	::DestroyMenu(hPopup);
+	//	
+	//	break;
+	//}
 	// 处理Backspace返回上一级
 	case WM_KEYDOWN: 
 	{
@@ -321,7 +352,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				//如果只是连续多次右键但是并没有点击“添加”怎么办
 				//但是另一个线程的处理顺序不一定是我这里，因为可能出现一种情况：
 				//就是另一个处理命令的线程可能刚刚要处理，但是m_NodeTobeAdded又被右键修改了
-				//实际上这个队列能保证它所保存的时序和你操作的时序是一致的 //todo：或者后面加个时间戳以进一步保证
+				//实际上这个队列能保证它所保存的时序和你操作的时序是一致的 
+				//todo：或者后面加个时间戳以进一步保证
 				CPipeMessageHandler::instance().PushGUICommandToQueue(STRING_ADD_ACTIVE_TAB);
 				break;
 			}

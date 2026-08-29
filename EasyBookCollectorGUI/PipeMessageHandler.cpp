@@ -320,7 +320,7 @@ VOID CPipeMessageHandler::ParseToBookmarkTree()
 			{
 				end = i;
 				sFolderName = PublicFuncs::UTF8ToWString(m_spBookMarksData.get() + start, end - start);
-				if (sFolderName != sLastFolderName)
+				if (sFolderName != sLastFolderName)//如果本次解析的文件夹路径和上次一样就不解析了
 				{
 					CBookMarksMgr::instance().InsertFolder(sFolderName);
 				}

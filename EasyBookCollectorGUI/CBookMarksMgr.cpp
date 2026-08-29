@@ -69,6 +69,9 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 	//建立在ListView中显示的文件夹的父子关系
 	uint64_t uSameNodeCnt = 0;
 	//寻找最短的公共路径
+	//对比前一次处理的Folders，如果有公共部分则把公共部分排除掉
+	//[书签菜单]
+	//[书签菜单 / 2026 / 投研]
 	for (auto i = 0; i < vecFolders.size(); i++)
 	{
 		if (i < min(vecFolders.size(), m_vecLastFolders.size()) && vecFolders[i] == m_vecLastFolders[i])

@@ -5,6 +5,8 @@
 #include "DropTarget.h"
 #include "BookMarksNode.h"
 #include "CBookMarksMgr.h"
+#pragma comment(lib, "comctl32.lib")
+#include <commctrl.h>
 //起初把这个声明包含在ListViewMgr.h文件里会报错
 //ListViewMgr.h 被包含时，CPipeCommManager 类型还没有定义完成。
 //也就是说：
@@ -985,10 +987,39 @@ BOOL CListViewMgr::SaveInsertedFolder(HWND hList, LPARAM lParam)
 	NMHDR* pNMHDR = (NMHDR*)lParam;
 	NMLISTVIEW* pNMLV = (NMLISTVIEW*)lParam;
 	int nItem = pNMLV->iItem;
-	if (nItem == -1)
+	if (nItem == -1)//点击到的不是ListViewItem
 	{
-		return FALSE; // 无效
+		uint32_t nItemCnt = ListView_GetItemCount(hList);
+		if (nItemCnt < 0)
+		{
+			return FALSE;
+		}
+		WCHAR szBuf[MAX_NAME_LEN] = { 0 };
+		LVITEMW lvi{};
+		lvi.mask = LVIF_TEXT | LVIF_PARAM | LVIF_STATE;
+		lvi.iItem = 6;
+		lvi.iSubItem = 0;
+		lvi.pszText = szBuf;
+		lvi.cchTextMax = ARRAYSIZE(szBuf);
+		if (!ListView_GetItem(hList, &lvi))
+		{
+			return FALSE;
+		}
+
+		uint32_t uId = lvi.lParam;
+		std::optional<CBookMarksNode> node = FindIndexById(static_cast<uint64_t>(uId));
+		uint32_t uFatherId = node->m_nFatherNum - 1;
+		std::optional<CBookMarksNode> node2 = FindIndexById(static_cast<uint64_t>(uFatherId));
+
+		m_InsertedFolder = node2;
+		if (!m_InsertedFolder.has_value())
+		{
+			return FALSE;
+		}
+		//todo：取该目录下的第一个或者第二个节点，然后拿到他的父节点信息
+		return TRUE; // 无效
 	}
+
 
 	LVITEM lvi = { 0 };
 	TCHAR szText[256] = { 0 };
