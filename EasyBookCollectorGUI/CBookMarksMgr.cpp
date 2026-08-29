@@ -1,6 +1,6 @@
 #include "CBookMarksMgr.h"
 CBookMarksMgr::CBookMarksMgr() :
-	m_nLastFatherNum(-1)
+	m_nLastFatherId(-1)
 {
 
 }
@@ -97,7 +97,8 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 		if (!m_vecLastFolders.empty())
 		{
 			LastNode = m_vecLastNodes.back();
-			m_nLastFatherNum = LastNode.m_uNum;
+			//m_nLastFatherNum = LastNode.m_uNum;
+			m_nLastFatherId = LastNode.GetId();
 			//避免下一次遍历的目录比上一次遍历的目录短的情况出现，比如：
 			//[书签菜单/2026/IT2026/前沿科学]
 			//[书签菜单/2026/IT2026]
@@ -106,7 +107,7 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 	}
 	else//说明没有公共路径，那就重新以根节点为根目录
 	{
-		m_nLastFatherNum = -1;
+		m_nLastFatherId = -1;
 	}
 
 	for (auto i = 0; i < vecFolders.size(); i++)
@@ -119,10 +120,10 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 		CBookMarksNode node;
 		// 截取一段
 		node.m_bIsFolder = true;
-		node.m_nFatherNum = m_nLastFatherNum;
-		node.m_uNum = m_vecThreadSafeNodes.GetSize() + 1;//计数从1开始
+		node.m_nFatherId = m_nLastFatherId;
+		//node.m_uNum = m_vecThreadSafeNodes.GetSize() + 1;//计数从1开始
 
-		m_nLastFatherNum = node.m_uNum;
+		m_nLastFatherId = m_vecThreadSafeNodes.GetSize();
 		node.m_sName = vecFolders[i];
 		node.m_uId = m_uBookMarkNodeId++;
 		m_vecThreadSafeNodes.Append(node);
@@ -153,7 +154,7 @@ VOID CBookMarksMgr::InsertFolder(const std::wstring s)
 //	{12, false, L"G++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //	{13, false, L"H++ Primer.md", 4, 1004, L"C++基础，自定义数据"},
 //};
-VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des, int64_t nFatherNum)
+VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std::wstring des, int64_t nFatherId)
 {
 	//std::unique_lock<std::shared_mutex> lock(m_rwVecNodes);
 	CBookMarksNode node;
@@ -161,9 +162,9 @@ VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std
 	node.m_bIsFolder = false;
 	node.m_sName = name;
 	node.m_sDescription = des;
-	node.m_uNum = m_vecThreadSafeNodes.GetSize() + 1;//计数从1开始
+	//node.m_uNum = m_vecThreadSafeNodes.GetSize() + 1;//计数从1开始
 	node.m_uId = m_uBookMarkNodeId++;//这玩意儿有用吗？通过uId查找节点的时候需要一个唯一编号
-	node.m_nFatherNum = nFatherNum;
+	node.m_nFatherId = nFatherId;
 	m_vecThreadSafeNodes.Append(node);
 }
 

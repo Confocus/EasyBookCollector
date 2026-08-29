@@ -261,7 +261,7 @@ BOOL CPipeMessageHandler::HandleActiveTabInfo(HANDLE hPipe)
 		}
 		// 这里是增加到vector，然后将来再点击文件夹进入的时候会自动借助以前的VisitSubListViewFolder来刷新
 		CBookMarksMgr::instance().InsertBookInfoUnderFolder(PublicFuncs::UTF8ToWString(activeInfo->first.c_str(), activeInfo->first.length()),
-			PublicFuncs::UTF8ToWString(activeInfo->second.c_str(), activeInfo->first.length()), InsertedFolder->GetNum());
+			PublicFuncs::UTF8ToWString(activeInfo->second.c_str(), activeInfo->first.length()), InsertedFolder->GetId());
 
 		bRet = TRUE;
 	} while (0);
@@ -356,7 +356,7 @@ VOID CPipeMessageHandler::ParseToBookmarkTree()
 					length = end - start + 1;
 				}
 				sWebsiteDes = PublicFuncs::Trim(PublicFuncs::UTF8ToWString(m_spBookMarksData.get() + start, length));
-				CBookMarksMgr::instance().InsertBookInfoUnderFolder(sWebsiteName, sWebsiteDes, CBookMarksMgr::instance().GetCurrentNode().GetNum());//todo：这里调用关系这么长？
+				CBookMarksMgr::instance().InsertBookInfoUnderFolder(sWebsiteName, sWebsiteDes, CBookMarksMgr::instance().GetCurrentNode().GetId());//todo：这里调用关系这么长？
 				bParsingWebsite = FALSE;
 				bPrasingFolder = TRUE;
 				//todo：分析手动改变FireFox中书签的顺序是否有影响

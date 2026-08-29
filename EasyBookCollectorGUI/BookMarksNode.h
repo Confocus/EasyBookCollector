@@ -7,8 +7,8 @@ class CBookMarksNode
 public:
 	CBookMarksNode() :
 		m_bIsFolder(TRUE),
-		m_uNum(0),
-		m_nFatherNum(-1),
+		//m_uNum(0),
+		m_nFatherId(-1),
 		m_uId(0)
 	{
 
@@ -18,13 +18,13 @@ public:
 
 	}
 
-	uint64_t GetNum();
-
+	//uint64_t GetNum();
+	int64_t GetId() const;
 	BOOL IsNodeFolder();
 public:
 	BOOL m_bIsFolder;
-	uint64_t m_uNum;
-	int64_t m_nFatherNum;
+	//uint64_t m_uNum;
+	int64_t m_nFatherId;
 	uint64_t m_uId; 
 	std::wstring m_sDescription;
 	std::wstring m_sName;

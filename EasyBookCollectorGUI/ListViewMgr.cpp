@@ -775,7 +775,7 @@ void CListViewMgr::LoadVirtualFolders(HWND hList, int parent_id)
 	const unsigned& uNodeCount = CBookMarksMgr::instance().GetBookMarksCnt();
 	for (unsigned int i = 0; i < uNodeCount; i++)
 	{
-		if (vecNodes[i].m_nFatherNum != parent_id)
+		if (vecNodes[i].m_nFatherId != parent_id) //加载某个文件夹下所有的内容，所以要判断某个节点是不是属于这个文件夹（父节点）
 		{
 			continue;
 		}
@@ -908,10 +908,10 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 		std::optional<signed int> nParentId;
 		for (unsigned int i = 0; i < uNodeCount; i++)
 		{
-			if (vecNodes[i].m_uNum == m_nLeftCurrentParent)
+			if (vecNodes[i].GetId() == m_nLeftCurrentParent)
 			{
-				nParentId = vecNodes[i].m_nFatherNum;
-				m_nLeftCurrentParent = vecNodes[i].m_nFatherNum;
+				nParentId = vecNodes[i].m_nFatherId;
+				m_nLeftCurrentParent = vecNodes[i].m_nFatherId;
 				break;
 			}
 		}
@@ -932,7 +932,7 @@ void CListViewMgr::VisitSubListViewFolder(HWND hWnd, UINT msg, WPARAM wParam, LP
 		if (node->m_bIsFolder)
 		{
 			// 进入文件夹：更新当前父节点，重新加载
-			m_nLeftCurrentParent = node->m_uNum;
+			m_nLeftCurrentParent = node->GetId();
 			LoadVirtualFolders(hListView, m_nLeftCurrentParent);
 		}
 		else if (!node->m_bIsFolder)
@@ -1008,7 +1008,7 @@ BOOL CListViewMgr::SaveInsertedFolder(HWND hList, LPARAM lParam)
 
 		uint32_t uId = lvi.lParam;
 		std::optional<CBookMarksNode> node = FindIndexById(static_cast<uint64_t>(uId));
-		uint32_t uFatherId = node->m_nFatherNum - 1;
+		uint32_t uFatherId = node->m_nFatherId;
 		std::optional<CBookMarksNode> node2 = FindIndexById(static_cast<uint64_t>(uFatherId));
 
 		m_InsertedFolder = node2;
