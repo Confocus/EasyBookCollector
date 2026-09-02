@@ -168,6 +168,21 @@ VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring name, const std
 	m_vecThreadSafeNodes.Append(node);
 }
 
+VOID CBookMarksMgr::InsertBookInfoUnderFolder(const std::wstring sWebsiteName, const std::wstring sWebsiteDes, const std::wstring sParentId, const std::wstring sBookmarkId, int64_t nFatherId)
+{
+	CBookMarksNode node;
+	// 截取一段
+	node.m_bIsFolder = false;
+	node.m_sName = sWebsiteName;
+	node.m_sDescription = sWebsiteDes;
+	node.m_wsParentId = sParentId;
+	node.m_wsBookmarkId = sBookmarkId;
+	//node.m_uNum = m_vecThreadSafeNodes.GetSize() + 1;//计数从1开始
+	node.m_uId = m_uBookMarkNodeId++;//通过uId查找节点的时候需要一个唯一编号
+	node.m_nFatherId = nFatherId;
+	m_vecThreadSafeNodes.Append(node);
+}
+
 const std::vector<CBookMarksNode>& CBookMarksMgr::GetAllBookMarksNodes() const
 {
 	return m_vecThreadSafeNodes.GetData();

@@ -5,6 +5,7 @@
 #include <iostream>
 #include "BookMarksNode.h"
 #include "publicfuncs.h"
+#include <regex>
 
 using json = nlohmann::json;
 
@@ -16,7 +17,8 @@ CPipeMessageHandler::CPipeMessageHandler():
 	//m_hDisconnectPipeEvent(NULL)
 {
 	//默认启动时就自带一条加载书签的命令
-	m_qGUICommand.push(STRING_RELOAD_BOOKMARKS);
+	//m_qGUICommand.push(STRING_RELOAD_BOOKMARKS);
+	m_qGUICommand.push(STRING_RELOAD_BOOKMARKS_WITH_ID);
 	//m_spBookMarksMgr = std::make_shared<CBookMarksMgr>();
 	m_mCmdUid[STRING_ADD_ACTIVE_TAB] = UID_ADD_ACTIVE_TAB;
 	m_mCmdUid[STRING_RELOAD_BOOKMARKS] = UID_RELOAD_BOOKMARKS;
@@ -276,8 +278,8 @@ BOOL CPipeMessageHandler::HandleActiveTabInfo(HANDLE hPipe)
 			PublicFuncs::UTF8ToWString(activeInfo->second.c_str(), activeInfo->first.length()), InsertedFolder->GetId());
 
 		CListViewMgr::instance().RefreshCurrentListView(InsertedFolder->GetId());
-		//m_qGUICommand.push(STRING_RELOAD_BOOKMARKS_WITH_ID);
-		m_qGUICommand.push(STRING_ADD_BOOKMARK);
+		m_qGUICommand.push(STRING_RELOAD_BOOKMARKS_WITH_ID);
+		//m_qGUICommand.push(STRING_ADD_BOOKMARK);
 		
 		bRet = TRUE;
 	} while (0);
@@ -307,7 +309,7 @@ BOOL CPipeMessageHandler::HandleBookmarksDataWithId(HANDLE hPipe)
 		return FALSE;
 	}
 	DumpToFile(m_spBookMarksData.get(), m_uBookMarksLen, "bookmarkes_dump_id.bin");
-	//ParseToBookmarkTree();
+	ParseToBookmarkTreeByRegexp();
 
 	return TRUE;
 }
@@ -326,13 +328,15 @@ VOID CPipeMessageHandler::ParseToBookmarkTree()
 	BOOL bPrasingFolder = TRUE;
 	BOOL bParsingDescription = FALSE;
 	BOOL bParsingWebsite = FALSE;
+	BOOL bParsingParentId = FALSE;
+	BOOL bParsingBookmarkId = FALSE;
 	std::wstring sLastFolderName;
 	std::wstring sWebsiteName;
 	std::wstring sWebsiteDes;
 	std::wstring sFolderName;
 
 	uint64_t tmpcount = 0;
-	//解析基于如下事实：
+	//解析基于如下事实（这一事实是由js端决定的，js端可以更改数据格式）：
 	//1、每条存储信息占一行，由换行键决定
 	//2、文件夹的名称没有/存在 todo：当然我们可以测试下有/存在的文件夹Firefox是怎么处理的
 	//3、同一目录下必须是连续出现的
@@ -396,6 +400,52 @@ VOID CPipeMessageHandler::ParseToBookmarkTree()
 				//todo：如果GUI崩溃了，再启动GUI是否可以直接连接上Native
 				//todo：目前还有一个bug，就是如果我不关闭Native，连续几次启动关闭GUI.exe，就会有出现加载文件夹不完全的情况出现
 			}
+		}
+	}
+
+	HANDLE hLoadedBookmarksEvent = CreateEvent(
+		NULL,
+		FALSE,
+		FALSE,
+		EVENT_NAME_LOADED_BOOKMARKS
+	);
+
+	if (hLoadedBookmarksEvent == NULL)
+	{
+		//todo：如何进行错误处理？
+		return;
+	}
+
+	SetEvent(hLoadedBookmarksEvent);
+}
+
+VOID CPipeMessageHandler::ParseToBookmarkTreeByRegexp()
+{
+	std::regex re(R"(\[(.*?)\] folderId:([^ |]+) \| bookmarkId:([^ |]+) \| (.*?) => (.*))");
+	uint64_t uStart = 0;
+	uint64_t uEnd = 0;
+
+	for (int i = 0; i < m_uBookMarksLen; i++)
+	{
+		if (m_spBookMarksData[i] == '\n' || i == m_uBookMarksLen - 1)//找到一行
+		{
+			uEnd = i;
+			std::smatch m;
+			uint64_t length = i != m_uBookMarksLen - 1 ? uEnd - uStart : uEnd - uStart + 1;
+			std::string line = std::string(m_spBookMarksData.get() + uStart, length);
+			if (std::regex_search(line, m, re))
+			{
+				std::wstring wsFolderName = PublicFuncs::UTF8ToWString(m[1].str().c_str(), m[1].str().length());
+				std::wstring wsTitle = PublicFuncs::UTF8ToWString(m[4].str().c_str(), m[4].str().length());
+				std::wstring wsUrl = PublicFuncs::UTF8ToWString(m[5].str().c_str(), m[5].str().length());
+				std::wstring wsParentId = PublicFuncs::UTF8ToWString(m[2].str().c_str(), m[2].str().length());
+				std::wstring wsBookmarkId = PublicFuncs::UTF8ToWString(m[3].str().c_str(), m[3].str().length());
+
+				CBookMarksMgr::instance().InsertFolder(wsFolderName);
+				CBookMarksMgr::instance().InsertBookInfoUnderFolder(wsTitle, wsUrl, wsParentId, wsBookmarkId, CBookMarksMgr::instance().GetCurrentNode().GetId());//todo：这里调用关系这么长？
+			}
+
+			uStart = uEnd + 1;
 		}
 	}
 

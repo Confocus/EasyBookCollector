@@ -81,7 +81,19 @@ private:
 	BOOL HandleBookmarksDataWithId(HANDLE hPipe);
 
 	BOOL AddBookMark(HANDLE hPipe);
+
+	/**
+	* @brief 解析从浏览器过来的书签数据
+	* @details 格式类似于[书签菜单/2026/投研] 研报精选 - 萝卜投研 => https://robo.datayes.com/v2/selection
+	*/
 	VOID ParseToBookmarkTree();
+
+	/**
+	* @brief 解析从浏览器过来的书签数据
+	* @details 由于担心后面会获取更详细的书签信息，导致每一行书签信息有所增加，所以使用正则表达式去解析会更灵活一点
+	*/
+	VOID ParseToBookmarkTreeByRegexp();
+
 	std::optional<std::pair<std::string, std::string>> ParseActiveInfo();
 	BOOL Disconnect();
 

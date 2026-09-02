@@ -1,5 +1,8 @@
 #pragma once
-//todo：完善添加某个书签的功能，要求同步到远端的目录下；这就进一步要求本地要保存bookmarkid和parentid
+//todo：
+//完善添加某个书签的功能，要求同步到远端的目录下；
+//这就进一步要求本地要保存bookmarkid和parentid
+//todo：改成使用正则表达式的解析速度会减慢
 
 //todo：未来拿到评分数据
 //todo：添加一个文件夹后如何同步到远端？
@@ -13,3 +16,11 @@
 //todo：尽早引入gtest
 //todo：新建文件夹功能
 //todo：验证js的asyn是否正确
+//todo：远端变化的时候，本地实时获取更新
+
+//todo：我发现即便更改名字、更换文件夹所在的位置，它的id也是不变的。但是如果删除了，再重新建一个同名的文件夹，其id就会改变
+//[书签菜单 / 测试id] folderId:AxRcDoAb2DAw | bookmarkId : kxKTWJ2Wx453 | 直播吧 = > https://www.zhibo8.com/
+//[书签菜单 / 测试id3333] folderId : AxRcDoAb2DAw | bookmarkId : kxKTWJ2Wx453 | 直播吧 = > https://www.zhibo8.com/
+//
+//[书签菜单 / 测试id] folderId : cPeQi3lUMG_M | bookmarkId : EMFqd_LsI - 37 | 直播吧 = > https://www.zhibo8.com/
+//[书签菜单 / 知乎Live / 测试id] folderId : cPeQi3lUMG_M | bookmarkId : EMFqd_LsI - 37 | 直播吧 = > https://www.zhibo8.com/

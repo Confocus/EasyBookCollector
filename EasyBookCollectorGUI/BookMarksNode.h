@@ -7,7 +7,6 @@ class CBookMarksNode
 public:
 	CBookMarksNode() :
 		m_bIsFolder(TRUE),
-		//m_uNum(0),
 		m_nFatherId(-1),
 		m_uId(0)
 	{
@@ -28,5 +27,7 @@ public:
 	uint64_t m_uId; 
 	std::wstring m_sDescription;
 	std::wstring m_sName;
+	std::wstring m_wsParentId;
+	std::wstring m_wsBookmarkId;
 };
 

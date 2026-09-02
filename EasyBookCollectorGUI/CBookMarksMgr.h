@@ -25,7 +25,18 @@ class CBookMarksMgr : public Singleton<CBookMarksMgr>
 	friend Singleton<CBookMarksMgr>;
 public:
 	VOID InsertFolder(const std::wstring);
-	VOID InsertBookInfoUnderFolder(const std::wstring, const std::wstring, int64_t nFatherNum);
+	VOID InsertBookInfoUnderFolder(
+		const std::wstring sWebsiteName, 
+		const std::wstring sWebsiteDes, 
+		int64_t nFatherId);
+
+	VOID InsertBookInfoUnderFolder(
+		const std::wstring sWebsiteName, 
+		const std::wstring sWebsiteDes, 
+		const std::wstring sParentId,
+		const std::wstring sBookmarkId,
+		int64_t nFatherId);
+
 	const std::vector<CBookMarksNode>& GetAllBookMarksNodes() const;
 	const uint64_t& GetBookMarksCnt() const;
 	std::optional<CBookMarksNode> FindIndexById(uint64_t uid);
