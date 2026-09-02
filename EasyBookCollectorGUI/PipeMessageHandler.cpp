@@ -20,6 +20,8 @@ CPipeMessageHandler::CPipeMessageHandler():
 	//m_spBookMarksMgr = std::make_shared<CBookMarksMgr>();
 	m_mCmdUid[STRING_ADD_ACTIVE_TAB] = UID_ADD_ACTIVE_TAB;
 	m_mCmdUid[STRING_RELOAD_BOOKMARKS] = UID_RELOAD_BOOKMARKS;
+	m_mCmdUid[STRING_RELOAD_BOOKMARKS_WITH_ID] = UID_RELOAD_BOOKMARKS_WITH_ID;
+	m_mCmdUid[STRING_ADD_BOOKMARK] = UID_ADD_BOOKMARK;
 }
 
 CPipeMessageHandler::~CPipeMessageHandler()
@@ -104,6 +106,16 @@ void CPipeMessageHandler::Run()
 			case UID_RELOAD_BOOKMARKS:
 			{
 				HandleBookmarksData(hPipe);
+				break;
+			}
+			case UID_RELOAD_BOOKMARKS_WITH_ID:
+			{
+				HandleBookmarksDataWithId(hPipe);
+				break;
+			}
+			case UID_ADD_BOOKMARK:
+			{
+				//todo：等待添加结果的返回值，拿到返回的bookmark id
 				break;
 			}
 			case UID_DISCONNECT:
@@ -264,6 +276,9 @@ BOOL CPipeMessageHandler::HandleActiveTabInfo(HANDLE hPipe)
 			PublicFuncs::UTF8ToWString(activeInfo->second.c_str(), activeInfo->first.length()), InsertedFolder->GetId());
 
 		CListViewMgr::instance().RefreshCurrentListView(InsertedFolder->GetId());
+		//m_qGUICommand.push(STRING_RELOAD_BOOKMARKS_WITH_ID);
+		m_qGUICommand.push(STRING_ADD_BOOKMARK);
+		
 		bRet = TRUE;
 	} while (0);
 	
@@ -282,6 +297,23 @@ BOOL CPipeMessageHandler::HandleBookmarksData(HANDLE hPipe)
 	// todo：本地刷新或者重载？
 	//todo：发送通知到Firefox：是一个一个提交还是多个操作之后一起提交？
 	
+	return TRUE;
+}
+
+BOOL CPipeMessageHandler::HandleBookmarksDataWithId(HANDLE hPipe)
+{
+	if (!ReadDataFromPipe(hPipe, m_spBookMarksData, m_uBookMarksLen))
+	{
+		return FALSE;
+	}
+	DumpToFile(m_spBookMarksData.get(), m_uBookMarksLen, "bookmarkes_dump_id.bin");
+	//ParseToBookmarkTree();
+
+	return TRUE;
+}
+
+BOOL CPipeMessageHandler::AddBookMark(HANDLE hPipe)
+{
 	return TRUE;
 }
 

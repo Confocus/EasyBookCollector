@@ -92,6 +92,64 @@ async function sendBookmarksToExe() {
     }
 }
 
+async function getBookmarks2() {
+  // debugger; // 需要调试再打开
+  let bookmarksTree = await browser.bookmarks.getTree();
+  let list = [];
+
+  /**
+   * @param {object} node 当前节点
+   * @param {string} currentPath 当前路径字符串
+   * @param {string|null} parentFolderId 当前节点所属父文件夹id
+   */
+  function traverse(node, currentPath, parentFolderId) {
+    if (!node) return;
+
+    // 文件夹节点：node.id = 当前这个文件夹自己的id
+    if (!node.url) {
+      let newPath = currentPath;
+      if (node.title) {
+        newPath = currentPath ? `${currentPath}/${node.title}` : node.title;
+      }
+      // 子节点的父文件夹id就是本文件夹的 node.id
+      if (Array.isArray(node.children)) {
+        node.children.forEach(child => traverse(child, newPath, node.id));
+      }
+    }
+    // 书签节点：记录它所在文件夹 parentFolderId，以及书签自身id node.id
+    else if (node.url && node.title) {
+      list.push(`[${currentPath}] folderId:${parentFolderId} | bookmarkId:${node.id} | ${node.title} => ${node.url}`);
+    }
+  }
+
+  if (bookmarksTree[0]?.children) {
+    bookmarksTree[0].children.forEach(rootNode => {
+      // 顶层三个文件夹（工具栏/书签菜单/其他书签），它们的parentId是系统根，这里传入rootNode.id作为子节点的父ID
+      traverse(rootNode, "", null);
+    });
+  }
+
+  return list.join("\n");
+}
+
+async function sendBookmarksToExe2() {
+    console.log("sendBookmarksToExe2 start");
+
+    try {
+        // 获取书签
+        let bookmarkText = await getBookmarks2();
+        console.log("✅ 准备发送书签数据，长度：", bookmarkText.length);
+
+        // --- WebSocket 直接发送！一行搞定！---
+        ws.send(bookmarkText);
+
+        console.log("✅ 书签已发送到 EXE！");
+
+    } catch (err) {
+        console.error("❌ 发送失败：", err);
+    }
+}
+
 async function getActiveTabInfo() {
     const tabData = await getSavedBlurTab();
             // 转为JSON字符串发送
@@ -99,6 +157,28 @@ async function getActiveTabInfo() {
                 type: "before_switch_tab",
                 data: tabData
             }));
+}
+
+/**
+ * 根据父文件夹id插入书签
+ * @param {string} parentId 目标文件夹ID
+ * @param {string} title 书签标题
+ * @param {string} url 书签地址
+ * @returns {Promise<object>} 返回新建的书签节点对象，包含新建书签的id
+ */
+async function addBookmarkByParentId(parentId, title, url) {
+  try {
+    const bookmarkNode = await browser.bookmarks.create({
+      parentId: parentId,
+      title: title,
+      url: url
+    });
+    console.log("插入成功，新书签id：", bookmarkNode.id);
+    return bookmarkNode;
+  } catch (err) {
+    console.error("插入书签失败", err);
+    throw err;
+  }
 }
 
 // async function getRecordTab() {
@@ -148,10 +228,21 @@ function startListen() {
             // 你要执行的逻辑写这里
             sendBookmarksToExe();
         }
+        if (cmd === "reload-bookmarks-id") 
+        {
+            console.log("🔄 执行：刷新书签");
+            // 你要执行的逻辑写这里
+            sendBookmarksToExe2();
+        }
         if(cmd == "AddActiveTab")
         {
             console.log("🔄 获取activeTab信息");
             getActiveTabInfo();
+        }
+        if(cmd == "add-bookmark")
+        {
+            console.log("🔄 首次尝试同步本地书签到远端");
+            addBookmarkByParentId("JUbKkSQG6fFs", "aaa", "https://example.com");
         }
         if (cmd === "retry") {
             console.log("🔄 retry");

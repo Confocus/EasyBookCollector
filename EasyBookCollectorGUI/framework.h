@@ -31,6 +31,10 @@
 #define UID_ADD_ACTIVE_TAB		2
 #define STRING_DISCONNECT "DisconnectPipe"
 #define UID_DISCONNECT		3
+#define STRING_RELOAD_BOOKMARKS_WITH_ID	"reload-bookmarks-id"
+#define UID_RELOAD_BOOKMARKS_WITH_ID	4
+#define STRING_ADD_BOOKMARK	"add-bookmark"
+#define UID_ADD_BOOKMARK	5
 
 #define PIPE_NAME_BOOKMARK_TRANS	L"\\\\.\\pipe\\BookmarkTransPipe"
 #define EVENT_NAME_SENT_RECV_CMD	L"{31E3A6F1-105A-45D9-8E73-79CE24064F5C}\SendRecvCmd"

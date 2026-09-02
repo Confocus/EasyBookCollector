@@ -59,8 +59,28 @@ private:
 	//todo:后续改成单独一个线程出来缓存到本地
 	VOID DumpToFile(const char* data, int length, std::string_view svDumpPath);//todo:构建树形结构
 	
+	/**
+	* @brief 获取当前活跃的页面信息。
+	* @details 主要是为了“添加”该页面到书签中
+	* @param hPipe 与后台进程通信的管道句柄
+	*/
 	BOOL HandleActiveTabInfo(HANDLE hPipe);
+
+	/**
+	* @brief 获取全部书签信息。
+	* @details 
+	* @param hPipe 与后台进程通信的管道句柄
+	*/
 	BOOL HandleBookmarksData(HANDLE hPipe);
+
+	/**
+	* @brief 获取全部书签信息，但是携带文件夹id。
+	* @details 用来测试获取的文件夹是否能携带唯一id，以便本地添加完文件夹之后能正确同步到浏览器中
+	* @param hPipe 与后台进程通信的管道句柄
+	*/
+	BOOL HandleBookmarksDataWithId(HANDLE hPipe);
+
+	BOOL AddBookMark(HANDLE hPipe);
 	VOID ParseToBookmarkTree();
 	std::optional<std::pair<std::string, std::string>> ParseActiveInfo();
 	BOOL Disconnect();
